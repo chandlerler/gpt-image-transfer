@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图像港 · 批量图片转换</title><link rel="stylesheet" href="app.css"></head>
+<body>
+  <div class="shell">
+    <header><div class="brand"><span class="brand-mark">▧</span><div><strong>图像港</strong><span class="brand-en">IMAGE PORT</span></div></div><div class="header-right"><span class="privacy"><i></i> 仅在本地处理</span><button id="close" class="icon-button" title="收起面板" aria-label="收起面板">✕</button></div></header>
+    <main>
+      <div class="intro"><div><div class="eyebrow">给图片，一个新格式</div><h1>批量转换，轻松一点。</h1><p>转换格式、整理名称、打包带走。图片无需上传。</p></div><span class="intro-art" aria-hidden="true">↗</span></div>
+      <div class="workspace">
+        <section class="files-column" aria-label="待处理图片">
+          <label class="drop-zone" id="drop-zone" tabindex="0" role="button" for="file-input">
+            <span class="upload-icon" aria-hidden="true">＋</span><strong>拖拽图片到这里</strong><span>或 <b>选择文件</b> · 支持多选</span><small>JPG、PNG、WebP、GIF、SVG、AVIF、BMP、ICO、TIFF 等</small>
+          </label><input id="file-input" type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif,.ico" multiple hidden>
+          <div class="list-heading"><h2>图片队列 <span id="count">0</span></h2><button id="clear" class="text-button" disabled>清空</button></div>
+          <div id="empty" class="empty-state"><div class="empty-art" aria-hidden="true">▧ <span>▧</span></div><strong>你的图片，在这里集合</strong><p>添加后即可批量转换，支持混合输入格式。</p></div>
+          <ul id="file-list" class="file-list" aria-label="图片列表"></ul>
+          <div class="queue-foot"><span id="total-size">尚未添加图片</span><span>不设固定数量上限</span></div>
+        </section>
+        <aside class="settings">
+          <div class="settings-title"><span>转换设置</span><span class="step">01 / FORMAT</span></div>
+          <label class="field-title" id="format-label">目标格式</label>
+          <div id="formats" class="format-grid" role="group" aria-labelledby="format-label"></div>
+          <p id="format-tip" class="field-help">无损压缩，保留透明背景。</p>
+          <div id="quality-field"><label class="field-title" for="quality">图片质量 <output id="quality-value">90%</output></label><input id="quality" type="range" min="10" max="100" value="90"><div class="range-labels"><span>更小体积</span><span>更清晰</span></div></div>
+          <div id="background-field" class="background-field" hidden><label for="background">透明区域填充</label><input type="color" id="background" value="#ffffff"></div>
+          <div class="divider"></div>
+          <label class="field-title" for="pattern">批量重命名 <span class="optional">可选</span></label>
+          <input id="pattern" type="text" value="{name}" maxlength="160" spellcheck="false" placeholder="旅行_{n}">
+          <p class="field-help"><code>{name}</code> 原文件名 <code>{n}</code> 序号；同名自动去重</p>
+          <div class="two-fields"><label>起始序号<input id="start" type="number" min="0" max="99999999" step="1" value="1"></label><label>序号位数<select id="digits"><option value="1">1 位 · 1</option><option value="2">2 位 · 01</option><option value="3" selected>3 位 · 001</option><option value="4">4 位 · 0001</option></select></label></div>
+          <div class="name-preview">预览 <span id="name-preview">image.png</span></div>
+          <details><summary>调整尺寸 <span>保持比例</span></summary><div class="two-fields"><label>最大宽度<input id="max-width" type="number" min="1" max="32767" placeholder="原始宽度"></label><label>最大高度<input id="max-height" type="number" min="1" max="32767" placeholder="原始高度"></label></div><p class="field-help">单位 px，只缩小不放大；ICO 最大 256 × 256。</p></details>
+          <button id="convert" class="primary-button" disabled>开始转换 <span>→</span></button>
+          <button id="cancel" class="secondary-button" hidden>停止处理</button>
+          <button id="download-all" class="secondary-button" disabled>↓ 打包下载 ZIP</button>
+          <p class="settings-note">动画取第一帧 · TIFF 取第一页<br>实际容量取决于设备内存</p>
+        </aside>
+      </div>
+      <div class="status-line" role="status" aria-live="polite"><span id="status">准备就绪，添加图片开始吧。</span><progress id="progress" value="0" max="1" hidden></progress></div>
+    </main>
+    <footer><span>本地转换 · 无需注册 · 无网络上传</span><span>IMAGE PORT / 1.0</span></footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
