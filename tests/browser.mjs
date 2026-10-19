@@ -41,6 +41,8 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${baseURL}/app.html`);
   await page.waitForSelector('[data-format=png]');
+  assert.equal(await page.locator('#pattern').inputValue(), '{n}');
+  assert.equal(await page.locator('#name-preview').textContent(), '001.png');
   const input = await page.evaluate(() => {
     const c = document.createElement('canvas'); c.width = 40; c.height = 20;
     const ctx = c.getContext('2d'); ctx.fillStyle = '#ff0000'; ctx.fillRect(0, 0, 20, 20);
@@ -113,6 +115,7 @@ try {
   console.log('PASS responsive layout at 390px');
   await page.setViewportSize({ width: 1180, height: 980 });
   const host = await context.newPage();
+  host.on('pageerror', error => errors.push(error.message));
   await host.goto(`http://127.0.0.1:${server.address().port}/host`);
   if (!extensionMode) {
     // Test the real content script with a small runtime API stub. This is not an installed-extension test.
@@ -120,7 +123,48 @@ try {
     await host.addScriptTag({ url: `${baseURL}/content.js` });
   }
   await host.waitForSelector('#image-port-root');
-  await host.mouse.click(1090, 932);
+  // Read the closed shadow DOM through DevTools, as a browser inspector would.
+  // Interactions below use real pointer events, not direct function calls.
+  const cdp = await context.newCDPSession(host);
+  async function shadowElement(className) {
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    function find(node) {
+      const attributes = Object.fromEntries(Array.from({ length: (node.attributes || []).length / 2 }, (_, i) => [node.attributes[i * 2], node.attributes[i * 2 + 1]]));
+      if (attributes.class?.split(' ').includes(className)) return { nodeId: node.nodeId, attributes };
+      for (const child of [...(node.children || []), ...(node.shadowRoots || []), ...(node.contentDocument ? [node.contentDocument] : [])]) {
+        const match = find(child); if (match) return match;
+      }
+    }
+    const element = find(root);
+    assert.ok(element, `shadow element ${className} exists`);
+    if (!Object.hasOwn(element.attributes, 'hidden')) {
+      const { model } = await cdp.send('DOM.getBoxModel', { nodeId: element.nodeId });
+      element.box = { x: model.border[0], y: model.border[1], width: model.width, height: model.height };
+    }
+    return element;
+  }
+  async function clickShadow(className) {
+    const { box } = await shadowElement(className);
+    await host.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+  async function dragShadow(className, dx, dy) {
+    const { box } = await shadowElement(className);
+    const x = box.x + Math.min(box.width / 2, 80), y = box.y + box.height / 2;
+    await host.mouse.move(x, y); await host.mouse.down();
+    await host.mouse.move(x + dx, y + dy, { steps: 10 }); await host.mouse.up();
+  }
+  function assertVisibleBounds(box, viewport) {
+    assert.ok(box.x >= 8 && box.y >= 8, 'keeps top and left edges accessible');
+    assert.ok(box.x + box.width <= viewport.width - 8 && box.y + box.height <= viewport.height - 8, 'keeps bottom and right edges accessible');
+  }
+  const launcherBefore = (await shadowElement('launcher')).box;
+  assert.equal(launcherBefore.width, 44); assert.equal(launcherBefore.height, 44);
+  await dragShadow('launcher', -160, -100);
+  const launcherAfter = await shadowElement('launcher');
+  assert.equal(launcherAfter.box.x, launcherBefore.x - 160);
+  assert.equal(launcherAfter.box.y, launcherBefore.y - 100);
+  assert.equal(launcherAfter.attributes['aria-expanded'], 'false', 'drag does not open the panel');
+  await clickShadow('launcher');
   let panel;
   for (let i = 0; i < 50; i++) {
     panel = host.frames().find(frame => frame.url().includes('app.html?panel=1'));
@@ -129,15 +173,45 @@ try {
   }
   assert.ok(panel, 'floating launcher opens extension iframe');
   await panel.waitForSelector('#convert');
+  const compact = (await shadowElement('panel')).box;
+  assert.equal(compact.width, 600); assert.equal(compact.height, 600);
+  assertVisibleBounds(compact, host.viewportSize());
+  assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await panel.locator('#file-input').setInputFiles({ name: 'floating.png', mimeType: 'image/png', buffer: png });
   await panel.locator('#convert').click();
   await panel.waitForFunction(() => document.getElementById('status').textContent.startsWith('转换完成'));
   assert.match(await panel.locator('#status').textContent(), /1 张成功/);
-  await host.screenshot({ path: 'artifacts/screenshot-floating.png' });
-  await panel.locator('#close').click();
-  await host.mouse.click(1090, 932);
+  const floatingDownload = host.waitForEvent('download');
+  await panel.locator('#download-all').click();
+  const floatingZIP = unzipSync(await readFile(await (await floatingDownload).path()));
+  assert.deepEqual(Object.keys(floatingZIP), ['001.png']);
+  await dragShadow('panel-titlebar', -120, -80);
+  const moved = (await shadowElement('panel')).box;
+  assert.equal(moved.x, compact.x - 120); assert.equal(moved.y, compact.y - 80);
+  await dragShadow('launcher', -20, -20);
+  assert.equal((await shadowElement('launcher')).attributes['aria-expanded'], 'true', 'drag does not close an open panel');
+  assert.deepEqual((await shadowElement('panel')).box, moved, 'manually positioned panel stays put when its launcher moves');
+  await clickShadow('panel-close');
+  assert.ok(Object.hasOwn((await shadowElement('panel')).attributes, 'hidden'));
+  await clickShadow('launcher');
+  assert.deepEqual((await shadowElement('panel')).box, moved, 'reopening preserves panel position');
   assert.equal(await panel.locator('.file-meta.success').count(), 1, 'closing preserves results');
-  console.log(`PASS ${extensionMode ? 'installed extension' : 'content script with runtime stub'}: floating panel, conversion and reopen state`);
+  await host.screenshot({ path: 'artifacts/screenshot-floating.png' });
+  // Drag across the iframe and toward both corners, then shrink the viewport.
+  await dragShadow('panel-titlebar', -1000, -1000);
+  assertVisibleBounds((await shadowElement('panel')).box, host.viewportSize());
+  await dragShadow('panel-titlebar', 1000, 800);
+  assertVisibleBounds((await shadowElement('panel')).box, host.viewportSize());
+  await host.setViewportSize({ width: 390, height: 620 });
+  await host.evaluate(() => new Promise(requestAnimationFrame));
+  assertVisibleBounds((await shadowElement('panel')).box, host.viewportSize());
+  assertVisibleBounds((await shadowElement('launcher')).box, host.viewportSize());
+  assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await clickShadow('panel-close');
+  await clickShadow('launcher');
+  assert.equal(await panel.locator('.file-meta.success').count(), 1);
+  await host.screenshot({ path: 'artifacts/screenshot-floating-mobile.png' });
+  console.log(`PASS ${extensionMode ? 'installed extension' : 'content script with runtime stub'}: compact panel, independent dragging, click/drag separation, bounds, resize, download and reopen state`);
   assert.deepEqual(errors, []);
   console.log('Browser validation complete.');
 } finally {

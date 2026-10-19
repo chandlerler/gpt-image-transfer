@@ -12,10 +12,10 @@ export function safeName(name) {
   const clean = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').trim().slice(0, 160) || 'image';
   return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(clean) ? `_${clean}` : clean;
 }
-export function outputNames(files, { format, pattern = '{name}', start = 1, digits = 3 }) {
+export function outputNames(files, { format, pattern = '{n}', start = 1, digits = 3 }) {
   const used = new Set();
   return files.map((file, i) => {
-    const base = safeName((pattern.trim() || '{name}').replace(/\{name\}/g, () => stem(file.name)).replace(/\{n\}/g, String(start + i).padStart(digits, '0')));
+    const base = safeName((pattern.trim() || '{n}').replace(/\{name\}/g, () => stem(file.name)).replace(/\{n\}/g, String(start + i).padStart(digits, '0')));
     let name = `${base}.${format}`, count = 2;
     while (used.has(name.toLowerCase())) name = `${base} (${count++}).${format}`;
     used.add(name.toLowerCase());

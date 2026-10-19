@@ -25,10 +25,10 @@
           <div id="background-field" class="background-field" hidden><label for="background">透明区域填充</label><input type="color" id="background" value="#ffffff"></div>
           <div class="divider"></div>
           <label class="field-title" for="pattern">批量重命名 <span class="optional">可选</span></label>
-          <input id="pattern" type="text" value="{name}" maxlength="160" spellcheck="false" placeholder="旅行_{n}">
+          <input id="pattern" type="text" value="{n}" maxlength="160" spellcheck="false" placeholder="旅行_{n}">
           <p class="field-help"><code>{name}</code> 原文件名 <code>{n}</code> 序号；同名自动去重</p>
           <div class="two-fields"><label>起始序号<input id="start" type="number" min="0" max="99999999" step="1" value="1"></label><label>序号位数<select id="digits"><option value="1">1 位 · 1</option><option value="2">2 位 · 01</option><option value="3" selected>3 位 · 001</option><option value="4">4 位 · 0001</option></select></label></div>
-          <div class="name-preview">预览 <span id="name-preview">image.png</span></div>
+          <div class="name-preview">预览 <span id="name-preview">001.png</span></div>
           <details><summary>调整尺寸 <span>保持比例</span></summary><div class="two-fields"><label>最大宽度<input id="max-width" type="number" min="1" max="32767" placeholder="原始宽度"></label><label>最大高度<input id="max-height" type="number" min="1" max="32767" placeholder="原始高度"></label></div><p class="field-help">单位 px，只缩小不放大；ICO 最大 256 × 256。</p></details>
           <button id="convert" class="primary-button" disabled>开始转换 <span>→</span></button>
           <button id="cancel" class="secondary-button" hidden>停止处理</button>
@@ -38,7 +38,7 @@
       </div>
       <div class="status-line" role="status" aria-live="polite"><span id="status">准备就绪，添加图片开始吧。</span><progress id="progress" value="0" max="1" hidden></progress></div>
     </main>
-    <footer><span>本地转换 · 无需注册 · 无网络上传</span><span>IMAGE PORT / 1.0</span></footer>
+    <footer><span>本地转换 · 无需注册 · 无网络上传</span><span>IMAGE PORT / 1.0.1</span></footer>
   </div>
   <script src="app.js"></script>
 </body>

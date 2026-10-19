@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import { outputNames, fitSize, encodeBMP, encodeICO, safeName } from '../src/core.js';
 
 test('batch names preserve stems, pad sequence, sanitize paths, and avoid case-insensitive collisions', () => {
-  assert.deepEqual(outputNames([{ name: 'Photo.png' }, { name: 'photo.jpg' }, { name: 'Photo (2).webp' }], { format: 'webp' }), ['Photo.webp', 'photo (2).webp', 'Photo (2) (2).webp']);
+  assert.deepEqual(outputNames([{ name: 'Photo.png' }, { name: 'photo.jpg' }, { name: 'Photo (2).webp' }], { format: 'webp', pattern: '{name}' }), ['Photo.webp', 'photo (2).webp', 'Photo (2) (2).webp']);
   assert.deepEqual(outputNames([{ name: 'one.png' }, { name: 'two.jpg' }], { format: 'jpg', pattern: '旅行/{n}_{name}', start: 7, digits: 3 }), ['旅行_007_one.jpg', '旅行_008_two.jpg']);
   assert.equal(safeName('CON'), '_CON');
   assert.equal(safeName('../bad:name. '), '.._bad_name');
-  assert.deepEqual(outputNames([{ name: '$&.png' }], { format: 'png' }), ['$&.png']);
+  assert.deepEqual(outputNames([{ name: '$&.png' }], { format: 'png', pattern: '{name}' }), ['$&.png']);
+});
+test('default and empty rename templates generate padded sequential names', () => {
+  const files = [{ name: 'photo.jpg' }, { name: 'another.webp' }];
+  assert.deepEqual(outputNames(files, { format: 'png' }), ['001.png', '002.png']);
+  assert.deepEqual(outputNames(files, { format: 'png', pattern: '  ' }), ['001.png', '002.png']);
 });
 test('resizing keeps aspect ratio, never upscales, and bounds ICO dimensions', () => {
   assert.deepEqual(fitSize(400, 200, 100, 100, 'png'), { width: 100, height: 50 });

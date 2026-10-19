@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "120",
   "name": "图像港 · 批量图片转换",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "通过网页悬浮窗在本地批量转换图片、重命名并打包下载。",
   "action": { "default_title": "打开图像港" },
   "background": { "service_worker": "background.js" },
