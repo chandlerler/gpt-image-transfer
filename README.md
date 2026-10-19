@@ -2,6 +2,8 @@
 
 一个 Manifest V3 Chrome 扩展。通过网页右下角的悬浮按钮，在本地批量转换图片、重命名和下载，无需账号或后端服务。
 
+快速上手：[简明使用说明](https://github.com/chandlerler/gpt-image-transfer/blob/main/USAGE.md)。
+
 ## 安装
 
 1. [下载插件安装包 ZIP](https://github.com/chandlerler/gpt-image-transfer/raw/refs/heads/main/releases/image-port-chrome.zip) 并解压（开发者也可以按下方命令构建，输出为 `artifacts/image-port-chrome.zip`）。
