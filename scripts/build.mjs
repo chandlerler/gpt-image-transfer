@@ -6,11 +6,14 @@ import { zipSync } from 'fflate';
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist/icons', { recursive: true });
 await mkdir('artifacts', { recursive: true });
-await build({ entryPoints: ['src/app.js', 'src/background.js', 'src/content.js'], bundle: true, outdir: 'dist', platform: 'browser', target: 'chrome120', legalComments: 'eof', minify: true });
+await build({ entryPoints: ['src/app.js', 'src/background.js', 'src/content.js', 'src/crop.js', 'src/crop-theme.js'], bundle: true, outdir: 'dist', platform: 'browser', target: 'chrome120', legalComments: 'eof', minify: true });
 await copyFile('manifest.json', 'dist/manifest.json');
 await copyFile('src/app.html', 'dist/app.html');
 await copyFile('src/app.css', 'dist/app.css');
 await copyFile('README.md', 'dist/README.md');
+await copyFile('USAGE.md', 'dist/USAGE.md');
+await copyFile('src/crop.html', 'dist/crop.html');
+await copyFile('src/crop.css', 'dist/crop.css');
 function crc32(bytes) {
   let crc = 0xffffffff;
   for (const byte of bytes) { crc ^= byte; for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1)); }

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图像港 · 图片批量裁剪</title>
+<link rel="stylesheet" href="crop.css">
+<script src="crop-theme.js"></script>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭预览">✕</button>
+    <img id="lightboxImg" alt="压缩后预览">
+    <div class="lightbox-cap" id="lightboxCap"></div>
+  </div>
+</div>
+<button class="theme-toggle" id="themeToggle" type="button" title="切换浅色 / 墨绿暗色" aria-label="切换主题">
+  <span class="tt-track">
+    <span class="tt-ico sun">☀</span>
+    <span class="tt-ico moon">☾</span>
+    <span class="tt-knob"></span>
+  </span>
+</button>
+<div class="aurora a1"></div>
+<div class="aurora a2"></div>
+<a class="brand" href="https://joyspace.jd.com/pages/3Ec6bGE1huJqO8yghR8I" target="_blank" rel="noopener" title="image zipper">
+  <span class="w1">image</span><span class="w2">zipper</span>
+</a>
+<div class="wrap">
+  <header>
+    <h1>图片批量裁剪</h1>
+    <div class="features">
+      <span class="feat">裁切方形尺寸</span>
+      <span class="feat">按体积自动压缩</span>
+      <span class="feat">批量命名导出</span>
+      <span class="feat">自设图片格式</span>
+      <span class="feat">实时预览结果</span>
+      <span class="feat">多图同时处理</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="field size">
+      <label>输出尺寸</label>
+      <div class="size-inline" style="display:flex; gap:8px; align-items:center;">
+        <select id="size">
+          <option value="800">800 × 800（主图）</option>
+          <option value="480">480 × 480（秒杀白底图）</option>
+          <option value="custom">自定义尺寸…</option>
+        </select>
+        <input type="number" id="cw" value="800" min="16" max="4096" style="display:none; width:76px;" title="宽度（px）">
+        <span id="customX" style="display:none; color:var(--faint); font-size:14px;">×</span>
+        <input type="number" id="ch" value="800" min="16" max="4096" style="display:none; width:76px;" title="高度（px）">
+        <span id="customUnit" style="display:none; color:var(--faint); font-size:13px; white-space:nowrap;">px</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>默认格式（新图片）</label>
+      <select id="fmt">
+        <option value="image/jpeg">JPEG</option>
+        <option value="image/png">PNG</option>
+        <option value="image/webp">WebP</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>体积上限（KB）</label>
+      <input type="number" id="maxkb" value="1024" min="10" max="10240" placeholder="留空不限体积">
+    </div>
+    <div class="hint">拖动裁切框内部平移取景，拖动四角圆点缩放（比例自动锁定为所选输出尺寸）。松手即刻重新压缩预览。</div>
+  </div>
+
+  <div class="drop" id="drop" role="button" tabindex="0" aria-label="选择或拖入裁剪图片">
+    <div class="icon">⬆</div>
+    <div class="big">点击选择图片，或把图片拖到这里</div>
+    <div class="small">支持批量 · JPG / PNG / WebP / GIF · 可粘贴(Ctrl+V) · 完全离线</div>
+    <input type="file" id="file" accept="image/*" multiple class="hidden">
+  </div>
+
+  <div class="batch" id="batch">
+    <div class="batch-group edit">
+      <div class="field">
+        <label>统一命名（{n} 序号 / {name} 原名）</label>
+        <input type="text" id="batchName" value="{n}" placeholder="产品主图_{n}" maxlength="160">
+      </div>
+      <button class="ghost small" id="applyName">应用命名</button>
+      <div class="field">
+        <label>统一格式</label>
+        <select id="batchFmt">
+          <option value="">保持不变</option>
+          <option value="image/jpeg">全部转 JPEG</option>
+          <option value="image/png">全部转 PNG</option>
+          <option value="image/webp">全部转 WebP</option>
+        </select>
+      </div>
+      <button class="ghost small" id="applyFmt">应用格式</button>
+      <button class="ghost small" id="resetCrop">全部居中裁切</button>
+    </div>
+    <div class="batch-group export">
+      <button class="ghost small" id="selectAll">全选</button>
+      <button class="ghost small" id="clear">清空</button>
+      <label class="zipopt" title="勾选后所有图片打包为一个 ZIP 文件下载">
+        <input type="checkbox" id="zipToggle"> 打包为 ZIP
+      </label>
+      <div class="field" id="zipNameField" style="display:none">
+        <label>压缩包名称</label>
+        <input type="text" id="zipName" placeholder="images" value="images">
+      </div>
+      <button class="ghost small" id="dlsel" disabled>下载选中</button>
+      <button class="dl" id="dlall">全部下载</button>
+    </div>
+  </div>
+
+  <p id="cropStatus" role="status" aria-live="polite">添加图片后自动居中裁剪，可逐张调整取景。</p>
+  <div class="results" id="results" aria-busy="false"></div>
+
+  <details class="doc">
+    <summary>裁剪功能说明与原网页来源</summary>
+    <div class="doc-body">
+      <p>image zipper 是一个<b>纯本地运行</b>的图片裁切压缩工具，为电商与日常出图场景而生。拖入图片即可可视化取景裁切、按输出比例锁定构图，并在你设定的体积上限内自动搜索并压到<b>最高可用画质</b>（不会盲目过度压缩）。整个过程都在浏览器内完成，图片<b>不会上传到任何服务器</b>，也不产生任何网络请求。本插件将该工具集成到「图片批量裁剪」入口，安装后无需注册、无需联网。</p>
+      <p class="doc-credit">原网页创建者：京喜事业部 — 宠物采销部 — 左春泽　·　<a href="https://joyspace.jd.com/pages/3Ec6bGE1huJqO8yghR8I" target="_blank" rel="noopener">项目主页 →</a></p>
+      <div class="doc-grid">
+        <div class="doc-card">
+          <h3>使用步骤</h3>
+          <ol>
+            <li>选择输出尺寸：内置主图 / 白底图预设，或填写自定义宽高。</li>
+            <li>拖入或点击上传一张或多张图片。</li>
+            <li>拖动裁切框内部平移取景，拖四角圆点缩放构图。</li>
+            <li>按需设置格式（JPEG / PNG / WebP）与体积上限。</li>
+            <li>单张下载，或一键批量导出全部结果。</li>
+          </ol>
+        </div>
+        <div class="doc-card">
+          <h3>核心功能</h3>
+          <ul>
+            <li><b>可视化裁切</b>：拖动裁切框平移取景、拖四角缩放，比例自动锁定为所选输出尺寸，所见即所得。</li>
+            <li><b>智能压缩</b>：在质量 40%–100% 范围内搜索符合体积上限的最高画质，避免过度压缩导致的糊图；有损格式尽量逼近目标体积；无法达到时明确提示超限。</li>
+            <li><b>高清缩放</b>：采用分步降采样，缩小图片时细节更锐利、边缘更干净。</li>
+            <li><b>尺寸预设 + 自定义</b>：内置 800×800 主图、480×480 白底图，也可自定义任意宽高，支持非正方形比例。</li>
+            <li><b>批量处理</b>：一次拖入多张，矩阵并排、逐张独立裁切；支持统一命名（自动序号）、统一格式、一键全部下载。</li>
+            <li><b>按图取色</b>：自动提取每张图主色点缀对应卡片，界面更有呼吸感。</li>
+            <li><b>完全离线 & 隐私</b>：所有运算在本地完成，图片零上传、零外泄。</li>
+          </ul>
+        </div>
+        <div class="doc-card">
+          <h3>适用场景</h3>
+          <ul>
+            <li><b>电商主图</b>：淘宝 / 天猫 / 京东等平台的 800×800 方图规范。</li>
+            <li><b>秒杀 / 活动白底图</b>：快速产出 480×480 等小尺寸素材。</li>
+            <li><b>社媒素材</b>：头像、封面、缩略图，按需自定义比例。</li>
+            <li><b>限制体积的上传</b>：需要压到指定 KB 的附件、证件照、表单图片。</li>
+            <li><b>批量规整</b>：把一批杂乱尺寸的图片统一成同一规格与命名。</li>
+            <li><b>敏感图片处理</b>：合同、证件等不便上传第三方网站的图片，可离线处理。</li>
+          </ul>
+        </div>
+        <div class="doc-card">
+          <h3>格式与体积说明</h3>
+          <ul>
+            <li><b>JPEG / WebP（有损）</b>：可通过调节画质逼近你设定的体积上限，是「压到指定 KB」的首选。</li>
+            <li><b>PNG（无损）</b>：没有画质档位，体积由像素与色彩决定；若超出上限，需改用 JPEG/WebP 或缩小输出尺寸，而非强行压到目标值。</li>
+            <li><b>体积上限</b>：仅对有损格式生效；留空则默认输出当前尺寸下的最高画质。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </details>
+
+</div>
+
+<script src="crop.js"></script>
+</body>
+</html>

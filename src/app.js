@@ -4,6 +4,31 @@ import { convert } from './convert.js';
 
 const $ = id => document.getElementById(id);
 document.body.classList.toggle('in-panel', new URLSearchParams(location.search).has('panel'));
+let cropFrame;
+function selectTool(tool) {
+  const cropping = tool === 'crop';
+  $('conversion-view').hidden = cropping;
+  $('crop-view').hidden = !cropping;
+  document.body.classList.toggle('crop-active', cropping);
+  for (const name of ['convert', 'crop']) {
+    const button = $(`show-${name}`), active = name === tool;
+    button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
+  }
+  if (cropping && !cropFrame) {
+    cropFrame = document.createElement('iframe'); cropFrame.id = 'crop-frame';
+    cropFrame.title = '图片批量裁剪'; cropFrame.src = 'crop.html';
+    $('crop-view').append(cropFrame);
+  }
+}
+for (const tool of ['convert', 'crop']) {
+  $(`show-${tool}`).addEventListener('click', () => selectTool(tool));
+  $(`show-${tool}`).addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'convert' : event.key === 'End' ? 'crop' : tool === 'crop' ? 'convert' : 'crop';
+    selectTool(next); $(`show-${next}`).focus();
+  });
+}
 const entries = [];
 let selectedFormat = 'png', busy = false, stopped = false, sequence = 0;
 const tips = {

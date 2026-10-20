@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { unzipSync } from 'fflate';
 import UTIF from 'utif';
+import { runCropChecks } from './crop-browser.mjs';
 
 const profile = await mkdtemp(join(tmpdir(), 'image-port-test-'));
 const extensionMode = process.env.TEST_EXTENSION === '1';
@@ -30,6 +31,7 @@ try {
     ignoreDefaultArgs: ['--disable-extensions'],
     args: ['--no-sandbox', ...(extensionMode ? [`--disable-extensions-except=${resolve('dist')}`, `--load-extension=${resolve('dist')}`] : [])],
     viewport: { width: 1180, height: 980 }, acceptDownloads: true,
+    reducedMotion: 'reduce',
   });
   let baseURL = `http://127.0.0.1:${server.address().port}`;
   if (extensionMode) {
@@ -212,6 +214,7 @@ try {
   assert.equal(await panel.locator('.file-meta.success').count(), 1);
   await host.screenshot({ path: 'artifacts/screenshot-floating-mobile.png' });
   console.log(`PASS ${extensionMode ? 'installed extension' : 'content script with runtime stub'}: compact panel, independent dragging, click/drag separation, bounds, resize, download and reopen state`);
+  await runCropChecks({ page, host, panel, baseURL, png });
   assert.deepEqual(errors, []);
   console.log('Browser validation complete.');
 } finally {

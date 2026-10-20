@@ -1,10 +1,15 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图像港 · 批量图片转换</title><link rel="stylesheet" href="app.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图像港 · 格式转换与图片裁剪</title><link rel="stylesheet" href="app.css"></head>
 <body>
   <div class="shell">
     <header><div class="brand"><span class="brand-mark">▧</span><div><strong>图像港</strong><span class="brand-en">IMAGE PORT</span></div></div><div class="header-right"><span class="privacy"><i></i> 仅在本地处理</span><button id="close" class="icon-button" title="收起面板" aria-label="收起面板">✕</button></div></header>
     <main>
+      <nav class="tool-tabs" role="tablist" aria-label="图片工具入口">
+        <button id="show-convert" class="tool-tab active" role="tab" aria-selected="true" aria-controls="conversion-view">格式批量转换</button>
+        <button id="show-crop" class="tool-tab" role="tab" aria-selected="false" aria-controls="crop-view" tabindex="-1">图片批量裁剪</button>
+      </nav>
+      <section id="conversion-view" role="tabpanel" aria-labelledby="show-convert">
       <div class="intro"><div><div class="eyebrow">给图片，一个新格式</div><h1>批量转换，轻松一点。</h1><p>转换格式、整理名称、打包带走。图片无需上传。</p></div><span class="intro-art" aria-hidden="true">↗</span></div>
       <div class="workspace">
         <section class="files-column" aria-label="待处理图片">
@@ -37,8 +42,10 @@
         </aside>
       </div>
       <div class="status-line" role="status" aria-live="polite"><span id="status">准备就绪，添加图片开始吧。</span><progress id="progress" value="0" max="1" hidden></progress></div>
+      </section>
+      <section id="crop-view" role="tabpanel" aria-labelledby="show-crop" hidden></section>
     </main>
-    <footer><span>本地转换 · 无需注册 · 无网络上传</span><span>IMAGE PORT / 1.0.1</span></footer>
+    <footer><span>本地处理 · 无需注册 · 无网络上传</span><span>IMAGE PORT / 1.1.0</span></footer>
   </div>
   <script src="app.js"></script>
 </body>

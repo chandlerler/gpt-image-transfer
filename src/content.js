@@ -18,15 +18,15 @@
   `;
   const button = document.createElement('button');
   button.className = 'launcher';
-  button.title = '图片转换 · 点击打开，拖动移动';
-  button.setAttribute('aria-label', '图片转换：点击打开，拖动移动');
+  button.title = '图像港 · 格式批量转换 / 图片批量裁剪 · 拖动移动';
+  button.setAttribute('aria-label', '图像港：点击打开格式转换或图片裁剪，拖动移动');
   button.setAttribute('aria-expanded', 'false');
   button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="9" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/></svg>';
   const panel = document.createElement('div');
   panel.className = 'panel';
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', '图像港 · 图片转换');
+  panel.setAttribute('aria-label', '图像港 · 格式转换与图片裁剪');
   const titlebar = document.createElement('div');
   titlebar.className = 'panel-titlebar';
   titlebar.title = '拖动标题栏移动面板';
@@ -102,7 +102,7 @@
     if (open && !frame) {
       frame = document.createElement('iframe');
       frame.src = chrome.runtime.getURL('app.html?panel=1');
-      frame.title = '图像港 · 批量图片转换';
+      frame.title = '图像港 · 格式转换与图片裁剪';
       panel.append(frame);
     }
     panel.hidden = !open;

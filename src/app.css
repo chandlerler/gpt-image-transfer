@@ -36,3 +36,14 @@
   .in-panel .empty-art{display:none}
   .in-panel .file-list{max-height:180px}
 }
+/* Two persistent tools: switching never discards either queue. */
+.tool-tabs{display:flex;gap:8px;margin-bottom:20px;padding:5px;background:#eaf0e3;border:1px solid #dce6d4;border-radius:12px;position:sticky;top:0;z-index:5}
+.tool-tab{flex:1;border:0;border-radius:8px;padding:11px 8px;background:transparent;color:#68805b;font-weight:600;font-size:13px}
+.tool-tab.active{background:#254f3f;color:#fff;box-shadow:0 2px 5px #1a402220}
+#crop-frame{display:block;width:100%;height:calc(100dvh - 210px);min-height:420px;border:1px solid #dce6d4;border-radius:12px}
+.crop-active footer{display:none}
+.in-panel .tool-tabs{margin-bottom:12px;padding:4px}
+.in-panel .tool-tab{padding:9px 5px;font-size:12px}
+.in-panel.crop-active main{padding:8px 8px 0}
+.in-panel.crop-active .tool-tabs{margin-bottom:8px}
+.in-panel #crop-frame{height:calc(100dvh - 62px);min-height:0;border-radius:10px 10px 0 0}
