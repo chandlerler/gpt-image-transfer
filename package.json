@@ -1,6 +1,6 @@
 {
   "name": "image-port-chrome",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "node tests/browser.mjs",
     "test:extension": "TEST_EXTENSION=1 node tests/browser.mjs",
-    "check": "npm test && npm run build && npm run test:e2e"
+    "check": "npm test && npm run build && npm run test:e2e && npm run test:workspace",
+    "test:workspace": "node tests/workspace-browser.mjs"
   },
   "dependencies": {
     "fflate": "0.8.2",

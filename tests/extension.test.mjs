@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { build } from 'esbuild';
 
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
-const background = await readFile('src/background.js', 'utf8');
+const background = (await build({ entryPoints: ['src/background.js'], bundle: true, write: false, format: 'iife', platform: 'browser' })).outputFiles[0].text;
 test('manifest uses MV3, packaged scripts, and no remote code or privileged downloads API', () => {
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions || [], []);
@@ -18,7 +19,7 @@ test('toolbar toggles supported page and opens standalone page when content scri
   let onClick;
   const chrome = {
     action: { onClicked: { addListener: fn => { onClick = fn; } } },
-    runtime: { getURL: path => `chrome-extension://test/${path}` },
+    runtime: { getURL: path => `chrome-extension://test/${path}`, onMessage: { addListener() {} } },
     tabs: { sendMessage: async (id, message) => { sent.push({ id, message }); }, create: async options => { opened.push(options); } },
   };
   runInNewContext(background, { chrome });

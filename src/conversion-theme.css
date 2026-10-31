@@ -1,0 +1,46 @@
+/* Both tools share the crop tool's exact day/night palette, aurora, star field
+   and animated switch. Only layout-specific conversion surfaces are mapped here. */
+:root{color-scheme:light}html[data-theme=dark]{color-scheme:dark}
+body{position:relative;isolation:isolate;background:var(--bg);color:var(--text);transition:background .3s,color .3s}
+.shell{position:relative;background:color-mix(in srgb,var(--bg) 94%,transparent);border-color:var(--line);box-shadow:var(--shadow-sm)}
+header{border-color:var(--line)}
+.brand-mark{background:var(--accent-grad);color:var(--surface)}
+.brand-en,.privacy,.eyebrow,.intro p,.drop-zone>span:not(.upload-icon),.drop-zone small,.field-help,.settings-note,.optional,.step,.queue-foot,.two-fields label,.range-labels,.background-field,.settings-note,.status-line,footer{color:var(--muted)}
+.privacy i{background:var(--ok)}.icon-button,.text-button{color:var(--muted)}
+h1{background:var(--title-grad);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.intro-art{background:var(--surface-2);color:var(--accent);border-color:var(--line)}
+.drop-zone{background:var(--surface-2);border-color:var(--line-strong);box-shadow:var(--shadow-sm)}
+.drop-zone:hover,.drop-zone.dragover{background:var(--accent-soft);border-color:var(--accent)}
+.drop-zone b,.field-help code,.field-title output,.name-preview span{color:var(--accent)}
+.upload-icon{background:var(--surface);border-color:var(--line);color:var(--accent);box-shadow:var(--shadow-sm)}
+h2 span{background:var(--surface-2);color:var(--muted)}
+.empty-state,.empty-state strong{color:var(--muted)}.empty-art{color:var(--line-strong)}
+.file-row,.queue-foot{border-color:var(--line)}
+.thumb{background:repeating-conic-gradient(var(--surface-2) 0% 25%,var(--surface) 0% 50%) 50% / 12px 12px}
+.file-icon{color:var(--faint);background:var(--surface-2)}.file-name{color:var(--text)}.file-meta{color:var(--muted)}.file-meta.error{color:var(--err)}.file-meta.success{color:var(--ok)}
+.row-actions button{background:var(--surface);color:var(--muted);border-color:var(--line)}
+.settings{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.format-grid button{background:var(--surface-2);color:var(--muted);border-color:var(--line)}
+.format-grid button.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+input[type=text],input[type=number],select{background:var(--surface-2);color:var(--text);border-color:var(--line)}
+input::placeholder{color:var(--faint)}input[type=range],.status-line progress{accent-color:var(--accent)}
+input:focus,select:focus{outline-color:var(--accent);border-color:var(--accent);background:var(--input-bg-focus)}
+button:focus-visible,.drop-zone:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.divider{background:var(--line)}.name-preview{background:var(--surface-2);color:var(--muted)}
+summary,summary span{color:var(--muted)}
+.primary-button{background:var(--accent-grad);border-color:transparent;color:#fff;box-shadow:0 3px 10px var(--accent-glow)}
+.primary-button:hover:not(:disabled){background:var(--accent-press)}
+.secondary-button{background:var(--surface);border-color:var(--line);color:var(--accent)}.secondary-button:hover:not(:disabled){background:var(--accent-soft)}
+.background-field input{border-color:var(--line)}
+.tool-heading{display:flex;align-items:center;gap:12px;margin-bottom:20px;position:sticky;top:0;z-index:5;background:var(--bg);border-radius:12px}
+.tool-heading .tool-tabs{position:static;flex:1;margin:0;background:var(--surface-2);border-color:var(--line)}
+.tool-tab{color:var(--muted)}.tool-tab.active{background:var(--accent-grad);color:#fff;box-shadow:var(--shadow-sm)}
+.tool-heading .theme-toggle{position:static;flex-shrink:0;display:block;line-height:0}
+.in-panel .tool-heading{margin-bottom:12px;gap:8px}.in-panel .tool-heading .tool-tabs{margin:0}
+.crop-active .tool-heading>.theme-toggle{display:none}
+#crop-frame{border-color:var(--line)}
+#workspace-notice{font-size:12px;line-height:1.7;background:var(--accent-soft);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
+#workspace-notice.error{color:var(--err)}
+#workspace-overlay{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 88%,transparent);color:var(--text);font-size:14px;text-align:center;cursor:wait;backdrop-filter:blur(5px)}
+#workspace-overlay[hidden],#workspace-notice[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){body{transition:none}}

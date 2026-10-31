@@ -1,0 +1,123 @@
+
+  :root {
+    --bg: #f5f1ea;
+    --bg-2: #efe9df;
+    --surface: #fffdfa;
+    --surface-2: #f8f3ec;
+    --line: #ece5d9;
+    --line-strong: #dcd3c3;
+    --text: #2c2822;
+    --muted: #8f887b;
+    --faint: #b0a897;
+    --accent: #ff6b53;
+    --accent-2: #ff9a3d;
+    --accent-press: #ef5a42;
+    --accent-soft: #fff0ea;
+    --accent-grad: linear-gradient(135deg, #ff6b53 0%, #ff9a3d 100%);
+    --ok: #17a06a;
+    --warn: #d0870d;
+    --err: #d4534a;
+    /* 按图取色时被 JS 覆盖；默认回退到品牌珊瑚 */
+    --tint: #ff6b53;
+    --tint-soft: rgba(255,107,83,.15);
+    --tint-glow: rgba(255,107,83,.34);
+    --r-lg: 22px;
+    --r-md: 15px;
+    --r-sm: 11px;
+    --shadow-sm: 0 1px 2px rgba(70,45,20,.05), 0 3px 10px rgba(70,45,20,.05);
+    --shadow-md: 0 4px 12px rgba(70,45,20,.07), 0 18px 34px rgba(70,45,20,.09);
+    /* 主题化补充变量（浅色默认值；深色在 [data-theme=dark] 覆盖） */
+    --inset-hi: rgba(255,255,255,.7);
+    --accent-glow: rgba(255,107,83,.35);
+    --ring: rgba(255,107,83,.16);
+    --pulse: rgba(255,107,83,.12);
+    --input-bg-focus: #ffffff;
+    --fx: 255,107,83;      /* canvas 粒子网颜色 R,G,B */
+    --aurora-1: #ffb27a;
+    --aurora-2: #ff8f8f;
+    --aurora-op: .5;
+    --title-grad: linear-gradient(135deg, #d84a34, #e8781f);
+    --thumb-bg: #efe9df;
+    /* 竖向间距刻度：统一各区块呼吸感 */
+    --sp-xs: 8px;
+    --sp-sm: 12px;
+    --sp-md: 16px;
+    --sp-lg: 24px;
+    --sp-xl: 32px;
+  }
+  /* ===== 暗色 · 墨绿主题 ===== */
+  html[data-theme="dark"] {
+    --bg: #0a1512;
+    --bg-2: #0d1c17;
+    --surface: #12241d;
+    --surface-2: #16281f;
+    --line: #21362c;
+    --line-strong: #2f4a3c;
+    --text: #e7f1ea;
+    --muted: #93a89d;
+    --faint: #6a8175;
+    --accent: #2fd396;
+    --accent-2: #59e6b8;
+    --accent-press: #24b880;
+    --accent-soft: rgba(47,211,150,.14);
+    --accent-grad: linear-gradient(135deg, #1f9d6b 0%, #45dfad 100%);
+    --ok: #35d08a;
+    --warn: #e2b657;
+    --err: #f0736a;
+    --tint: #2fd396;
+    --tint-soft: rgba(47,211,150,.16);
+    --tint-glow: rgba(47,211,150,.34);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 3px 12px rgba(0,0,0,.42);
+    --shadow-md: 0 6px 18px rgba(0,0,0,.5), 0 20px 42px rgba(0,0,0,.55);
+    --inset-hi: rgba(255,255,255,.05);
+    --accent-glow: rgba(47,211,150,.42);
+    --ring: rgba(47,211,150,.30);
+    --pulse: rgba(47,211,150,.16);
+    --input-bg-focus: #16281f;
+    --fx: 66,224,176;
+    --aurora-1: #0f7d59;
+    --aurora-2: #0a8c7e;
+    --aurora-op: .38;
+    --title-grad: linear-gradient(135deg, #6ef0bd, #2fd396 55%, #17b98f);
+    --thumb-bg: #0e1c17;
+  }
+  /* 极光光晕背景（JS 驱动缓慢随机游走） */
+  .aurora {
+    position: fixed; left: 50%; top: 50%; z-index: -2; border-radius: 50%;
+    filter: blur(90px); opacity: var(--aurora-op); pointer-events: none; will-change: transform;
+    transition: transform 13s cubic-bezier(.45, 0, .55, 1);
+  }
+  .aurora.a1 { width: 560px; height: 560px; background: radial-gradient(circle, var(--aurora-1) 0%, transparent 70%); transform: translate(calc(-50% - 28vw), calc(-50% - 24vh)); }
+  .aurora.a2 { width: 520px; height: 520px; background: radial-gradient(circle, var(--aurora-2) 0%, transparent 70%); transform: translate(calc(-50% + 28vw), calc(-50% + 24vh)); }
+  /* 粒子星座画布：仅暗色显示，置于极光之上、内容之下 */
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: none; }
+  html[data-theme="dark"] #fx { display: block; }
+  /* 主题切换（左上角） */
+  .theme-toggle {
+    position: fixed; top: 20px; left: 32px; z-index: 30;
+    border: none; background: transparent; padding: 0; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tt-track {
+    position: relative; display: inline-flex; align-items: center; justify-content: space-between;
+    width: 66px; height: 32px; border-radius: 999px; padding: 0 8px;
+    background: var(--surface); border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm), inset 0 1px 0 var(--inset-hi);
+    transition: background .3s, border-color .3s, box-shadow .3s;
+  }
+  .tt-ico { font-size: 14px; line-height: 1; z-index: 1; transition: opacity .3s, transform .3s; }
+  .tt-ico.sun { color: #e8781f; }
+  .tt-ico.moon { color: #6ef0bd; }
+  .tt-knob {
+    position: absolute; top: 3px; left: 3px; width: 25px; height: 25px; border-radius: 50%;
+    background: var(--accent-grad);
+    box-shadow: 0 2px 6px var(--accent-glow);
+    transition: transform .34s cubic-bezier(.5,1.6,.4,1);
+  }
+  html[data-theme="dark"] .tt-knob { transform: translateX(33px); }
+  html:not([data-theme="dark"]) .tt-ico.moon { opacity: .4; }
+  html[data-theme="dark"] .tt-ico.sun { opacity: .4; }
+  .theme-toggle:hover .tt-track { border-color: var(--accent); }
+  .theme-toggle:active .tt-knob { width: 30px; }
+
+@media(prefers-reduced-motion:reduce){.aurora,.tt-knob,.tt-track{transition:none!important}}

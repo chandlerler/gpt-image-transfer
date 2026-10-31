@@ -1,3 +1,5 @@
+import { initTheme } from './theme.js';
+import { captureControls, restoreControls } from './workspace-transfer.js';
 import { safeName } from './core.js';
 import { centerRect, clampRect, resizeRect, batchStem, uniqueNames } from './crop-core.js';
 import { drawCropped, encodeBest } from './crop-engine.js';
@@ -10,6 +12,7 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
   const items = [];
   let seq = 0, pending = 0;
   let tasks = Promise.resolve();
+  let workspaceLocked = false;
   function syncControls() {
     document.querySelectorAll('.controls input, .controls select, .batch button, .batch input, .batch select, .card input, .card select, .card > .dl, #file').forEach(el => { el.disabled = pending > 0; });
     items.forEach(item => {
@@ -23,6 +26,7 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
     updateSelUI();
   }
   function runTask(label, action) {
+    if (workspaceLocked) return Promise.resolve(false);
     pending++; syncControls();
     const next = tasks.then(async () => {
       $('cropStatus').textContent = label;
@@ -396,15 +400,17 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
     preview.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openLightbox(item); } });
   }
 
-  async function processFile(file) {
+  async function processFile(file, saved = null) {
     const { tw, th } = targetSize();
     const item = {
-      id: ++seq, format: $('fmt').value, tw, th,
+      file, id: ++seq, format: $('fmt').value, tw, th,
       stem: stemOf(file.name) + `_${tw}x${th}`,
       origSize: file.size, originalName: file.name,
     };
+    if (saved) Object.assign(item, { format: saved.format, tw: saved.tw, th: saved.th, stem: saved.stem });
     items.push(item);
     buildCard(item);
+    if (saved?.error && !saved.crop) { failItem(item, new Error(saved.error)); return; }
 
     try {
       const url = URL.createObjectURL(file);
@@ -421,14 +427,22 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
       try { item.bitmap = await createImageBitmap(file); } catch { /* SVG may need the decoded image element. */ }
       const col = sampleColor(img);
       if (col) applyTint(item, col);
-      centerCrop(item);
+      if (saved?.crop) item.crop = { ...saved.crop }; else centerCrop(item);
       item.boxEl.style.display = 'block';
       layoutCropBox(item);
       if (!reduceMotion) item.boxEl.animate(
         [{ opacity: 0, transform: 'scale(1.05)' }, { opacity: 1, transform: 'none' }],
         { duration: 300, easing: 'cubic-bezier(.2,.7,.3,1)' });
       bindCropDrag(item);
-      await renderOutput(item, false);
+      if (saved) {
+        item.canvas = drawCropped(item.bitmap || item.img, item.crop, item.tw, item.th);
+        Object.assign(item, { blob: saved.blob, over: saved.over, quality: saved.quality, error: saved.error, upscaled: saved.upscaled, selected: saved.selected });
+        if (saved.tint) item.el.style.cssText = saved.tint;
+        item.el.querySelector('.pickbox').checked = !!saved.selected;
+        item.el.classList.toggle('selected', !!saved.selected);
+        if (saved.error || !saved.blob) failItem(item, new Error(saved.error || '尚无处理结果'));
+        else { item.url = URL.createObjectURL(saved.blob); item.el.dataset.state = 'ready'; refreshCard(item, false); }
+      } else await renderOutput(item, false);
     } catch (error) { failItem(item, error); }
   }
 
@@ -441,6 +455,7 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
   }
 
   function handleFiles(fileList) {
+    if (workspaceLocked) return;
     if (!validSettings()) return;
     const files = Array.from(fileList).filter(file => file && (file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(file.name)));
     if (!files.length) { $('cropStatus').textContent = '请选择图片文件。'; return; }
@@ -568,136 +583,35 @@ import { buildZip, saveBlob, splitArchives } from './archive.js';
   window.addEventListener('beforeunload', event => { if (pending) { event.preventDefault(); event.returnValue = ''; } });
   syncControls();
 
-  // ---- 背景极光缓慢随机游走 ----
-  (function auroraWander() {
-    if (reduceMotion) return;
-    const blobs = Array.from(document.querySelectorAll('.aurora'));
-    const rand = (a, b) => a + Math.random() * (b - a);
-    function move(el) {
-      const w = window.innerWidth, h = window.innerHeight;
-      const x = rand(-0.42 * w, 0.42 * w);
-      const y = rand(-0.42 * h, 0.42 * h);
-      el.style.transform = `translate(calc(-50% + ${x.toFixed(0)}px), calc(-50% + ${y.toFixed(0)}px))`;
+
+  // Same-origin API used only by the parent extension page. Each restored item
+  // gets fresh image/canvas/object URLs; the original encoded result is retained.
+  window.imagePortCropWorkspace = {
+    async freeze() { workspaceLocked = true; document.body.inert = true; await tasks; },
+    thaw() { workspaceLocked = false; document.body.inert = false; },
+    snapshot() {
+      return {
+        controls: captureControls(document), status: $('cropStatus').textContent,
+        scroll: { x: scrollX, y: scrollY }, details: [...document.querySelectorAll('details')].map(el => el.open),
+        lightbox: items.indexOf(lightboxItem),
+        items: items.map(item => ({ file: item.file, format: item.format, tw: item.tw, th: item.th, stem: item.stem,
+          crop: item.crop ? { ...item.crop } : null, blob: item.blob || null, over: item.over, quality: item.quality,
+          error: item.error, upscaled: item.upscaled, selected: !!item.selected, tint: item.el.style.cssText }))
+      };
+    },
+    async restore(snapshot) {
+      workspaceLocked = true; document.body.inert = true;
+      try {
+        restoreControls(document, snapshot.controls);
+        toggleCustomSize(); $('zipToggle').onchange();
+        for (const saved of snapshot.items) await processFile(saved.file, saved);
+        document.querySelectorAll('details').forEach((el, index) => { el.open = !!snapshot.details?.[index]; });
+        syncControls(); $('cropStatus').textContent = snapshot.status;
+        if (snapshot.lightbox >= 0) openLightbox(items[snapshot.lightbox]);
+        requestAnimationFrame(() => { items.forEach(layoutCropBox); scrollTo(snapshot.scroll?.x || 0, snapshot.scroll?.y || 0); });
+      } finally { workspaceLocked = false; document.body.inert = false; }
     }
-    blobs.forEach((el, i) => {
-      const step = () => { move(el); setTimeout(step, rand(9000, 15000)); };
-      setTimeout(step, 1200 + i * 1800); // 错峰启动，先保留初始对角布局片刻
-    });
-  })();
+  };
 
-  // ---- 主题切换（浅色 / 墨绿暗色），默认浅色，localStorage 记忆 ----
-  let fxSync = () => {};   // 由粒子星座模块填充，主题切换时调用
-  (function themeToggle() {
-    const root = document.documentElement, btn = $('themeToggle');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      const dark = root.getAttribute('data-theme') === 'dark';
-      if (dark) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', 'dark');
-      try { localStorage.setItem('iz-theme', dark ? 'light' : 'dark'); } catch (e) {}
-      fxSync();
-    });
-  })();
-
-  // ---- 粒子星座网（仅暗色 · 鼠标交互 · 减动守卫） ----
-  (function constellation() {
-    const cv = $('fx'); if (!cv) return;
-    const ctx = cv.getContext('2d');
-    let W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let pts = [], raf = 0;
-    const mouse = { x: -9999, y: -9999, on: false };
-    const root0 = document.documentElement;
-    const isDark = () => root0.getAttribute('data-theme') === 'dark';
-
-    function fxColor() {
-      const c = getComputedStyle(root0).getPropertyValue('--fx').trim();
-      return c || '66,224,176';
-    }
-
-    function resize() {
-      W = window.innerWidth; H = window.innerHeight;
-      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const target = Math.min(96, Math.round(W * H / 16000));
-      pts = [];
-      for (let i = 0; i < target; i++) {
-        pts.push({
-          x: (i * 9301 + 49297) % W,               // 确定性初值，避免依赖随机
-          y: (i * 24593 + 12345) % H,
-          vx: ((i % 7) - 3) * 0.05 + 0.02,
-          vy: (((i * 3) % 7) - 3) * 0.05 + 0.02,
-        });
-      }
-    }
-
-    const LINK = 128, LINK2 = LINK * LINK, MZ = 168, MZ2 = MZ * MZ;
-
-    function frame() {
-      if (!isDark()) { raf = 0; ctx.clearRect(0, 0, W, H); return; }  // 切回浅色即停
-      const col = fxColor();
-      ctx.clearRect(0, 0, W, H);
-      for (const p of pts) {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x += W; else if (p.x > W) p.x -= W;
-        if (p.y < 0) p.y += H; else if (p.y > H) p.y -= H;
-        // 鼠标轻微吸引，制造聚拢的酷炫感
-        if (mouse.on) {
-          const dx = mouse.x - p.x, dy = mouse.y - p.y, d2 = dx * dx + dy * dy;
-          if (d2 < MZ2 && d2 > 1) { const f = 0.6 / Math.sqrt(d2); p.x += dx * f; p.y += dy * f; }
-        }
-      }
-      // 连线
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[i];
-        for (let j = i + 1; j < pts.length; j++) {
-          const b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
-          if (d2 < LINK2) {
-            const al = (1 - d2 / LINK2) * 0.5;
-            ctx.strokeStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-          }
-        }
-        // 连到鼠标
-        if (mouse.on) {
-          const dx = a.x - mouse.x, dy = a.y - mouse.y, d2 = dx * dx + dy * dy;
-          if (d2 < MZ2) {
-            const al = (1 - d2 / MZ2) * 0.55;
-            ctx.strokeStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
-          }
-        }
-      }
-      // 节点
-      ctx.fillStyle = 'rgba(' + col + ',0.85)';
-      for (const p of pts) { ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, 6.2832); ctx.fill(); }
-      raf = requestAnimationFrame(frame);
-    }
-
-    function drawStatic() {
-      const col = fxColor();
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = 'rgba(' + col + ',0.7)';
-      for (const p of pts) { ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, 6.2832); ctx.fill(); }
-    }
-
-    window.addEventListener('resize', () => { resize(); if (isDark()) { if (reduceMotion) drawStatic(); else if (!raf) raf = requestAnimationFrame(frame); } }, { passive: true });
-    window.addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.on = true; }, { passive: true });
-    window.addEventListener('pointerleave', () => { mouse.on = false; });
-    document.addEventListener('mouseleave', () => { mouse.on = false; });
-
-    // 主题切换时启停：仅暗色运行，浅色清空停帧
-    fxSync = function () {
-      if (isDark()) {
-        if (reduceMotion) drawStatic();
-        else if (!raf) raf = requestAnimationFrame(frame);
-      } else {
-        if (raf) { cancelAnimationFrame(raf); raf = 0; }
-        ctx.clearRect(0, 0, W, H);
-      }
-    };
-
-    resize();
-    fxSync();
-  })();
+  initTheme();
 })();

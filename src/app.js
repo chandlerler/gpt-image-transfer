@@ -1,3 +1,5 @@
+import { initTheme, setTheme } from './theme.js';
+import { openWorkspace, loadWorkspace, discardWorkspace, captureControls, restoreControls } from './workspace-transfer.js';
 import { Zip, ZipPassThrough } from 'fflate';
 import { formats, outputNames, bytes } from './core.js';
 import { convert } from './convert.js';
@@ -5,11 +7,14 @@ import { convert } from './convert.js';
 const $ = id => document.getElementById(id);
 document.body.classList.toggle('in-panel', new URLSearchParams(location.search).has('panel'));
 let cropFrame;
+let currentTool = "convert";
 function selectTool(tool) {
+  currentTool = tool;
   const cropping = tool === 'crop';
   $('conversion-view').hidden = cropping;
   $('crop-view').hidden = !cropping;
   document.body.classList.toggle('crop-active', cropping);
+  window.dispatchEvent(new CustomEvent('image-port:tool-change'));
   for (const name of ['convert', 'crop']) {
     const button = $(`show-${name}`), active = name === tool;
     button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
@@ -52,7 +57,7 @@ function validOptions() {
 function names() { return outputNames(entries.map(entry => entry.file), options()); }
 function release(entry) {
   if (entry.previewURL) URL.revokeObjectURL(entry.previewURL);
-  entry.previewURL = null; entry.result = null;
+  entry.previewURL = null; entry.previewBlob = null; entry.result = null;
 }
 function refresh() {
   const listNames = names();
@@ -133,7 +138,7 @@ async function run() {
       await yieldUI();
       try {
         const result = await convert(entry.file, settings);
-        release(entry); entry.result = result; entry.previewURL = URL.createObjectURL(result.preview);
+        release(entry); entry.result = result; entry.previewBlob = result.preview; entry.previewURL = URL.createObjectURL(result.preview);
         const preview = document.createElement('img'); preview.className = 'thumb'; preview.alt = entry.file.name; preview.src = entry.previewURL;
         entry.thumb.replaceWith(preview); entry.thumb = preview;
         entry.meta.className = 'file-meta success';
@@ -223,5 +228,121 @@ $('cancel').addEventListener('click', () => { stopped = true; $('cancel').disabl
 $('download-all').addEventListener('click', downloadAll);
 $('close').hidden = window.parent === window;
 $('close').addEventListener('click', () => window.parent.postMessage({ type: 'image-port:close' }, '*'));
-window.addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (busy || workspaceBusy) { event.preventDefault(); event.returnValue = ''; } });
 refresh();
+
+function cropWorkspace() {
+  if (!cropFrame) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if (cropFrame.contentWindow?.imagePortCropWorkspace) return resolve(cropFrame.contentWindow.imagePortCropWorkspace);
+      if (Date.now() - start > 20000) return reject(new Error('裁剪页面尚未就绪，请稍后重试'));
+      setTimeout(check, 50);
+    };
+    check();
+  });
+}
+let workspaceBusy = false;
+function transferNotice(message, error = false) {
+  $('workspace-notice').hidden = false;
+  $('workspace-notice').textContent = message;
+  $('workspace-notice').classList.toggle('error', error);
+}
+function freezeUI(freeze) {
+  document.querySelector('.shell').inert = freeze;
+  $('workspace-overlay').hidden = !freeze;
+}
+function notifyHost(message) {
+  if (parent !== window) parent.postMessage(message, '*');
+}
+async function detachWorkspace() {
+  if (workspaceBusy) return;
+  workspaceBusy = true; freezeUI(true);
+  notifyHost({ type: 'image-port:detach-status', busy: true });
+  let crop;
+  try {
+    $('workspace-overlay-text').textContent = busy ? '等待当前图片处理完成，再复制到新标签页…' : '正在复制图片与设置…';
+    crop = await cropWorkspace();
+    if (crop) await crop.freeze();
+    while (busy) await new Promise(resolve => setTimeout(resolve, 50));
+    const snapshot = {
+      version: 1, tool: currentTool, theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
+      conversion: {
+        controls: captureControls(document), format: selectedFormat, status: $('status').textContent,
+        details: [...$('conversion-view').querySelectorAll('details')].map(el => el.open),
+        scroll: { x: scrollX, y: scrollY, list: $('file-list').scrollTop },
+        progress: { hidden: $('progress').hidden, value: $('progress').value, max: $('progress').max },
+        entries: entries.map(entry => ({ file: entry.file, result: entry.result, preview: entry.previewBlob || null,
+          meta: entry.meta.textContent, metaClass: entry.meta.className }))
+      },
+      crop: crop ? crop.snapshot() : null
+    };
+    await openWorkspace(snapshot, (done, total) => {
+      $('workspace-overlay-text').textContent = `正在复制图片与设置… ${total ? Math.round(done / total * 100) : 100}%`;
+    });
+    transferNotice('已在新标签页复制全部工作内容。这里的图片与设置仍保留，两边可独立继续操作。');
+    notifyHost({ type: 'image-port:detach-status', busy: false });
+  } catch (error) {
+    transferNotice(`打开失败：${error.message}。原悬浮窗的工作内容已保留，可重新点击重试。`, true);
+    notifyHost({ type: 'image-port:detach-status', busy: false, error: error.message });
+  } finally {
+    crop?.thaw(); workspaceBusy = false; freezeUI(false);
+  }
+}
+async function restoreWorkspace(id) {
+  workspaceBusy = true; freezeUI(true);
+  $('workspace-overlay-text').textContent = '正在恢复悬浮窗中的图片、设置与处理结果…';
+  try {
+    const snapshot = await loadWorkspace(id);
+    if (snapshot.version !== 1) throw new Error('不支持的工作内容版本');
+    const state = snapshot.conversion;
+    restoreControls(document, state.controls);
+    selectedFormat = state.format;
+    document.querySelectorAll('#formats button').forEach(el => {
+      const active = el.dataset.format === selectedFormat;
+      el.classList.toggle('active', active); el.setAttribute('aria-pressed', String(active));
+    });
+    $('format-tip').textContent = tips[selectedFormat];
+    $('quality-field').hidden = !['jpg', 'webp'].includes(selectedFormat);
+    $('background-field').hidden = !['jpg', 'bmp', 'gif'].includes(selectedFormat);
+    $('quality-value').textContent = `${$('quality').value}%`;
+    addFiles(state.entries.map(entry => entry.file));
+    entries.forEach((entry, index) => {
+      const saved = state.entries[index]; entry.result = saved.result;
+      entry.previewBlob = saved.preview || saved.result?.preview;
+      if (entry.previewBlob) {
+        entry.previewURL = URL.createObjectURL(entry.previewBlob);
+        const img = document.createElement('img'); img.className = 'thumb'; img.alt = entry.file.name; img.src = entry.previewURL;
+        entry.thumb.replaceWith(img); entry.thumb = img;
+      }
+      entry.meta.textContent = saved.meta; entry.meta.className = saved.metaClass;
+    });
+    $('conversion-view').querySelectorAll('details').forEach((el, index) => { el.open = !!state.details[index]; });
+    Object.assign($('progress'), state.progress); refresh(); status(state.status);
+    setTheme(snapshot.theme);
+    if (snapshot.crop) {
+      // Create the iframe even when conversion is the selected tab: both queues
+      // must survive the handoff, not just the currently visible one.
+      selectTool('crop'); const api = await cropWorkspace(); await api.restore(snapshot.crop);
+    }
+    selectTool(snapshot.tool);
+    requestAnimationFrame(() => { scrollTo(state.scroll.x, state.scroll.y); $('file-list').scrollTop = state.scroll.list; });
+    history.replaceState(null, '', location.pathname);
+    await discardWorkspace(id).catch(() => {});
+    transferNotice('已恢复两个工具的图片、设置及处理结果，可继续编辑或直接下载。');
+  } catch (error) {
+    transferNotice(`恢复失败：${error.message}。原悬浮窗的内容仍保留，请回原窗口重试。`, true);
+  } finally { workspaceBusy = false; freezeUI(false); }
+}
+$('open-workspace').addEventListener('click', detachWorkspace);
+window.addEventListener('message', event => {
+  if (event.source === parent && parent !== window && event.data?.type === 'image-port:detach') detachWorkspace();
+});
+function shareTheme() {
+  notifyHost({ type: 'image-port:theme', theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light' });
+}
+window.addEventListener('image-port:theme', shareTheme);
+initTheme(); shareTheme();
+const workspaceId = new URLSearchParams(location.search).get('workspace');
+if (workspaceId) restoreWorkspace(workspaceId);

@@ -151,7 +151,7 @@ try {
   }
   async function dragShadow(className, dx, dy) {
     const { box } = await shadowElement(className);
-    const x = box.x + Math.min(box.width / 2, 80), y = box.y + box.height / 2;
+    const x = box.x + (className === 'panel-titlebar' ? 20 : Math.min(box.width / 2, 80)), y = box.y + box.height / 2;
     await host.mouse.move(x, y); await host.mouse.down();
     await host.mouse.move(x + dx, y + dy, { steps: 10 }); await host.mouse.up();
   }

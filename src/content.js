@@ -1,3 +1,4 @@
+import { mountImagePortLauncher } from './launcher.js';
 (() => {
   if (window.top !== window || document.getElementById('image-port-root')) return;
   const host = document.createElement('div');
@@ -8,10 +9,12 @@
   style.textContent = `
     :host{font-family:system-ui,sans-serif}*{box-sizing:border-box}button{cursor:pointer;border:0;font:inherit}
     button:focus-visible{outline:3px solid #a8c776;outline-offset:2px}
-    .launcher{display:grid;place-items:center;width:44px;height:44px;padding:0;border-radius:14px;background:#194e43;color:white;box-shadow:0 4px 20px #143e4333;touch-action:none;user-select:none;cursor:grab}
-    .launcher:hover{background:#236353}.launcher svg{width:22px;height:22px;pointer-events:none}
+    .launcher{display:grid;place-items:center;width:44px;height:44px;padding:0;position:relative;z-index:1;border-radius:50%;overflow:hidden;background:transparent;color:#392d25;box-shadow:0 4px 16px #503a2533;touch-action:none;user-select:none;cursor:grab}
+    .launcher:hover{background:transparent}.launcher svg{display:block;width:100%;height:100%;pointer-events:none}.launcher svg *{pointer-events:none}
     .panel{position:fixed;display:flex;flex-direction:column;width:min(600px,calc(100vw - 16px));height:min(600px,calc(100dvh - 96px));background:#f8faf7;border:1px solid #d6e2da;border-radius:16px;box-shadow:0 12px 48px #10281b33;overflow:hidden}
     .panel[hidden]{display:none}.panel-titlebar{height:36px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;background:#eef3e9;border-bottom:1px solid #dfe7d9;cursor:grab;touch-action:none;user-select:none;color:#315340;font-size:12px}
+    .panel-expand{flex:1;min-width:80px;align-self:stretch;margin:3px 8px;border-radius:6px;background:transparent;color:inherit;font-size:11px}.panel-expand:hover{background:#dde8d5}.panel-expand:disabled{opacity:.6;cursor:wait}
+    .panel[data-theme=dark]{background:#0a1512;border-color:#21362c}.panel[data-theme=dark] .panel-titlebar{background:#12241d;border-color:#21362c;color:#e7f1ea}.panel[data-theme=dark] .panel-expand:hover{background:#21362c}.panel[data-theme=dark] .panel-close{color:#93a89d}
     .drag-hint{color:#87997c;font-size:10px;margin-left:auto}.panel-close{display:grid;place-items:center;width:26px;height:26px;background:transparent;border-radius:6px;color:#6e8063;font-size:16px}.panel-close:hover{background:#e0e9d8}
     .dragging,.dragging .panel-titlebar{cursor:grabbing}.panel.dragging iframe{pointer-events:none}
     iframe{width:100%;flex:1;min-height:0;border:0;display:block}
@@ -21,7 +24,7 @@
   button.title = '图像港 · 格式批量转换 / 图片批量裁剪 · 拖动移动';
   button.setAttribute('aria-label', '图像港：点击打开格式转换或图片裁剪，拖动移动');
   button.setAttribute('aria-expanded', 'false');
-  button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="9" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/></svg>';
+  mountImagePortLauncher(button);
   const panel = document.createElement('div');
   panel.className = 'panel';
   panel.hidden = true;
@@ -30,7 +33,13 @@
   const titlebar = document.createElement('div');
   titlebar.className = 'panel-titlebar';
   titlebar.title = '拖动标题栏移动面板';
-  titlebar.innerHTML = '<span aria-hidden="true">⠿</span><strong>图像港</strong><span class="drag-hint">拖动移动</span>';
+  titlebar.innerHTML = '<span aria-hidden="true">⠿</span><strong>图像港</strong><button class="panel-expand" title="将两个工具的图片和设置复制到新标签页">在新标签页打开 ↗</button><span class="drag-hint">拖动移动</span>';
+  const expand = titlebar.querySelector('.panel-expand');
+  expand.addEventListener('click', () => {
+    if (!frame || expand.disabled) return;
+    const url = new URL(chrome.runtime.getURL('/'));
+    frame.contentWindow.postMessage({ type: 'image-port:detach' }, `${url.protocol}//${url.host}`);
+  });
   const close = document.createElement('button');
   close.className = 'panel-close';
   close.textContent = '×';
@@ -120,7 +129,14 @@
   window.addEventListener('message', (event) => {
     const url = new URL(chrome.runtime.getURL('/'));
     const origin = `${url.protocol}//${url.host}`;
-    if (frame && event.source === frame.contentWindow && event.origin === origin && event.data?.type === 'image-port:close') toggle(false);
+    if (!frame || event.source !== frame.contentWindow || event.origin !== origin) return;
+    if (event.data?.type === 'image-port:close') toggle(false);
+    if (event.data?.type === 'image-port:theme') panel.dataset.theme = event.data.theme === 'dark' ? 'dark' : 'light';
+    if (event.data?.type === 'image-port:detach-status') {
+      expand.disabled = !!event.data.busy;
+      expand.textContent = event.data.busy ? '正在复制工作内容…' : '在新标签页打开 ↗';
+      expand.title = event.data.error || '将两个工具的图片和设置复制到新标签页';
+    }
   });
   root.append(style, panel, button);
   document.documentElement.append(host);
