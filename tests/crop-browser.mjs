@@ -148,7 +148,8 @@ export async function runCropChecks({ page, host, panel, baseURL, png }) {
     document.getElementById('drop').dispatchEvent(new DragEvent('drop', { dataTransfer: files, bubbles: true, cancelable: true }));
   }, png.toString('base64')); await idle();
   assert.equal(await crop.locator('.card[data-state=ready]').count(), 4);
-  await crop.locator('#themeToggle').click();
+  await page.locator('#themeToggle').click();
+  await crop.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   assert.equal(await crop.locator('html').getAttribute('data-theme'), 'dark');
   assert.equal(await crop.locator('#fx').isVisible(), true);
   const themePage = await page.context().newPage(); await themePage.goto(`${baseURL}/crop.html`);
@@ -159,7 +160,7 @@ export async function runCropChecks({ page, host, panel, baseURL, png }) {
   await page.locator('#show-crop').click();
   assert.equal(await crop.locator('.card[data-state=ready]').count(), 4, 'tool switching preserves the crop queue');
   await page.screenshot({ path: 'artifacts/screenshot-crop-dark.png', fullPage: true });
-  await crop.locator('#themeToggle').click();
+  await page.locator('#themeToggle').click();
   await crop.locator('#clear').click(); assert.equal(await crop.locator('.card').count(), 0);
   console.log('PASS crop inputs and state: clipboard, drop, transparency, light/dark theme persistence, queue isolation and clear');
 

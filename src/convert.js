@@ -81,3 +81,19 @@ export async function convert(file, options) {
     return { blob, preview, width, height };
   } finally { decoded.release(); canvas.width = 0; canvas.height = 0; }
 }
+
+// Generate a small, browser-readable original-image thumbnail before conversion,
+// including TIFF inputs decoded by the same local decoder as the conversion path.
+export async function previewFile(file) {
+  const decoded = await decode(file);
+  const canvas = document.createElement('canvas');
+  try {
+    const scale = Math.min(1, 96 / decoded.width, 96 / decoded.height);
+    canvas.width = Math.max(1, Math.round(decoded.width * scale));
+    canvas.height = Math.max(1, Math.round(decoded.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('无法创建预览');
+    context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
+    return await canvasBlob(canvas, 'image/png');
+  } finally { decoded.release(); canvas.width = 0; canvas.height = 0; }
+}

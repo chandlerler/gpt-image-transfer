@@ -76,9 +76,8 @@ try {
   const good = { name: '原图.png', mimeType: 'image/png', buffer: png };
   const bad = { name: '损坏.heic', mimeType: 'image/heic', buffer: Buffer.from('bad image') };
   await app.locator('#file-input').setInputFiles([good, bad]);
-  await app.locator('[data-format=webp]').click(); await app.locator('#quality').fill('67');
+  await app.locator('[data-format=webp]').click();
   await app.locator('#pattern').fill('新品_{n}_{name}'); await app.locator('#start').fill('12'); await app.locator('#digits').selectOption('4');
-  await app.locator('details').evaluate(el => { el.open = true; }); await app.locator('#max-width').fill('180'); await app.locator('#max-height').fill('150');
   await app.locator('#convert').click(); await app.waitForFunction(() => document.getElementById('status').textContent.startsWith('转换完成'));
   assert.equal(await app.locator('.file-meta.error').count(), 1);
   async function conversionDownload(page, frame) {
@@ -86,9 +85,15 @@ try {
     return unzipSync(await readFile(await (await download).path()));
   }
   const converted = await conversionDownload(host, app);
+  await app.evaluate(() => scrollTo(0, 0));
+  const convertSwitch = await app.locator('#themeToggle').boundingBox();
   await app.locator('#show-crop').click();
   const crop = await (await app.locator('#crop-frame').elementHandle()).contentFrame();
   await crop.waitForFunction(() => !!window.imagePortCropWorkspace);
+  await app.evaluate(() => scrollTo(0, 0));
+  const cropSwitch = await app.locator('#themeToggle').boundingBox();
+  assert.deepEqual(cropSwitch, convertSwitch, 'one shared switch stays at the same position');
+  assert.equal(await crop.locator('#themeToggle').isVisible(), false, 'no duplicate switch inside the crop iframe');
   const idle = () => crop.waitForFunction(() => document.getElementById('results').getAttribute('aria-busy') === 'false');
   await crop.locator('#size').selectOption('custom'); await idle();
   await crop.locator('#cw').fill('192'); await crop.locator('#cw').press('Tab'); await idle();
@@ -107,7 +112,7 @@ try {
   await card.locator('.card-grip').focus(); await card.locator('.card-grip').press('ArrowRight');
   await crop.locator('#batchName').fill('稍后应用_{n}'); await crop.locator('#batchFmt').selectOption('image/jpeg');
   await crop.locator('#zipToggle').check(); await crop.locator('#zipName').fill('商品主图');
-  await crop.locator('#themeToggle').click();
+  await app.locator('#themeToggle').click();
   await app.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   assert.equal(await host.locator('.panel').getAttribute('data-theme'), 'dark');
   async function cropFingerprint(frame) {
@@ -124,9 +129,9 @@ try {
   }
   const originalCrop = await cropFingerprint(crop);
   const originalConversion = await app.evaluate(() => ({
-    values: ['quality','pattern','start','digits','max-width','max-height'].map(id => document.getElementById(id).value),
+    values: ['pattern','start','digits'].map(id => document.getElementById(id).value),
     selected: document.querySelector('#formats .active').dataset.format,
-    rows: [...document.querySelectorAll('.file-row')].map(el => el.textContent), details: document.querySelector('details').open
+    rows: [...document.querySelectorAll('.file-row')].map(el => el.textContent)
   }));
   await host.locator('.panel-expand').click();
   await host.waitForFunction(() => !document.querySelector('#image-port-root').shadowRoot.querySelector('.panel-expand').disabled);
@@ -140,9 +145,9 @@ try {
   assert.deepEqual(await cropFingerprint(copyCrop), originalCrop);
   await copied.locator('#show-convert').click();
   assert.deepEqual(await copied.evaluate(() => ({
-    values: ['quality','pattern','start','digits','max-width','max-height'].map(id => document.getElementById(id).value),
+    values: ['pattern','start','digits'].map(id => document.getElementById(id).value),
     selected: document.querySelector('#formats .active').dataset.format,
-    rows: [...document.querySelectorAll('.file-row')].map(el => el.textContent), details: document.querySelector('details').open
+    rows: [...document.querySelectorAll('.file-row')].map(el => el.textContent)
   })), originalConversion);
   const copyZIP = await conversionDownload(copied, copied); assert.deepEqual(copyZIP, converted);
   assert.ok(messages.filter(type => type === 'image-port:workspace:put').length > 10);
@@ -154,7 +159,7 @@ try {
   assert.equal(await copied.locator('#fx').evaluate(el => getComputedStyle(el).display), 'block');
   await copied.locator('#themeToggle').click(); await copyCrop.waitForFunction(() => !document.documentElement.hasAttribute('data-theme'));
   await copied.screenshot({ path: 'artifacts/workspace-conversion-light.png', fullPage: true });
-  await copied.locator('#show-crop').click(); await copyCrop.locator('#themeToggle').click();
+  await copied.locator('#show-crop').click(); await copied.locator('#themeToggle').click();
   await copied.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   await copied.screenshot({ path: 'artifacts/workspace-crop-dark.png', fullPage: true });
   // Editing after restore needs original decoded pixels/canvas, not only thumbnails.
@@ -206,6 +211,18 @@ try {
   const completedCrop = await (await cropAfterBusy.locator('#crop-frame').elementHandle()).contentFrame();
   assert.equal(await completedCrop.locator('.card[data-state=ready]').count(), 1);
   assert.equal(await cropAfterBusy.locator('.file-meta.success').count(), 1);
+  const rawPage = await context.newPage(); await rawPage.goto(base + '/app.html');
+  await rawPage.locator('#file-input').setInputFiles(good);
+  await rawPage.locator('#open-workspace').click();
+  while (opened.length < 5) await new Promise(resolve => setTimeout(resolve, 50));
+  const rawCopy = opened[4];
+  await rawCopy.waitForFunction(() => document.getElementById('workspace-notice')?.textContent.startsWith('已恢复'));
+  await rawPage.close();
+  await rawCopy.waitForFunction(() => document.querySelector('#file-list img.thumb')?.naturalWidth > 0);
+  assert.equal(await rawCopy.locator('.file-meta.success').count(), 0);
+  assert.equal(await rawCopy.locator('#download-all').isDisabled(), true, 'a thumbnail is not mistaken for a converted result');
+  assert.equal(await rawCopy.locator('#quality, #max-width, #max-height').count(), 0);
+  console.log('PASS shared switch position and unconverted thumbnail handoff after closing the source');
   // Validate sender rejection and service-worker data cleanup without relying on a live source.
   const unauthorized = await background.evaluate(() => new Promise(resolve => window.listeners[0]({ type: 'image-port:workspace:begin', meta: { version: 1 }, blobs: [] }, { id: 'test', url: 'http://untrusted.example/' }, resolve)));
   assert.equal(unauthorized.ok, false);

@@ -487,3 +487,6 @@ button:disabled{cursor:default;opacity:.45}
 @media(max-width:760px){.batch{position:static}.card{animation-duration:.2s}}
 @media(min-width:1000px){.controls{grid-template-columns:2fr 1fr 1fr}.controls .field.size{grid-column:auto}}
 @media(max-width:420px){body{padding:54px 10px 20px}.features{display:none}h1{font-size:20px}.controls{padding:10px}.field label{font-size:11px}}
+
+/* Embedded cropping uses the parent's shared day/night switch. */
+.embedded-crop #themeToggle{display:none}

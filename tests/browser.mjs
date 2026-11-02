@@ -58,12 +58,28 @@ try {
   ]);
   await page.locator('#pattern').fill('旅行_{n}');
   await page.locator('#start').fill('7');
+  assert.equal(await page.locator('#quality, #quality-field, #max-width, #max-height').count(), 0);
+  await page.waitForFunction(() => [...document.querySelectorAll('#file-list img.thumb')].filter(img => img.complete && img.naturalWidth > 0).length === 2);
+  assert.equal(await page.locator('.file-meta.success').count(), 0, 'original previews appear before conversion');
+  await page.evaluate(() => {
+    window.encodedQualities = [];
+    const original = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+      window.encodedQualities.push({ type, quality });
+      return original.call(this, callback, type, quality);
+    };
+  });
   const exported = [];
   for (const format of ['png', 'jpg', 'webp', 'gif', 'bmp', 'tiff', 'ico']) {
     await page.locator(`[data-format=${format}]`).click();
+    await page.evaluate(() => { window.encodedQualities.length = 0; });
     await page.locator('#convert').click();
     await page.waitForFunction(() => document.getElementById('status').textContent.startsWith('转换完成'));
     assert.match(await page.locator('#status').textContent(), /2 张成功，1 张失败/);
+    if (['jpg', 'webp'].includes(format)) {
+      const qualities = await page.evaluate(mime => window.encodedQualities.filter(call => call.type === mime).map(call => call.quality), format === 'jpg' ? 'image/jpeg' : 'image/webp');
+      assert.equal(qualities.length, 2); assert.ok(qualities.every(value => value === 1), 'always uses highest encoder quality');
+    }
     const downloaded = page.waitForEvent('download');
     await page.locator('#download-all').click();
     const download = await downloaded;
@@ -98,23 +114,40 @@ try {
   await page.locator('#clear').click();
   await page.locator('#file-input').setInputFiles(exported);
   await page.locator('[data-format=png]').click();
-  await page.locator('summary').click();
-  await page.locator('#max-width').fill('10');
+  await page.waitForFunction(() => [...document.querySelectorAll('#file-list img.thumb')].filter(img => img.complete && img.naturalWidth > 0).length === 7);
+  assert.equal(await page.locator('.file-meta.success').count(), 0, 'including TIFF, all supported files preview before conversion');
   await page.locator('#convert').click();
   await page.waitForFunction(() => document.getElementById('status').textContent.startsWith('转换完成'));
   assert.match(await page.locator('#status').textContent(), /7 张成功/);
   assert.equal(await page.locator('.file-meta.success').count(), 7);
-  assert.match(await page.locator('.file-meta.success').first().textContent(), /10 × 5/);
+  assert.match(await page.locator('.file-meta.success').first().textContent(), /40 × 20/);
   const singleDownload = page.waitForEvent('download');
   await page.locator('.row-actions button').first().click();
   assert.equal((await singleDownload).suggestedFilename(), '旅行_007.png');
-  console.log('PASS all seven formats round-trip, resize and individual download');
+  console.log('PASS all seven formats round-trip, original-size output, upload previews and individual download');
   await mkdir('artifacts', { recursive: true });
   await page.screenshot({ path: 'artifacts/screenshot-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: 'artifacts/screenshot-mobile.png', fullPage: true });
   console.log('PASS responsive layout at 390px');
+  await page.locator('#clear').click();
+  await page.evaluate(() => {
+    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+    window.previewURLs = new Set();
+    URL.createObjectURL = blob => { const url = create(blob); window.previewURLs.add(url); return url; };
+    URL.revokeObjectURL = url => { window.previewURLs.delete(url); revoke(url); };
+    const original = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (...args) { setTimeout(() => original.apply(this, args), 200); };
+  });
+  await page.locator('#file-input').setInputFiles([
+    { name: 'cancel-preview.png', mimeType: 'image/png', buffer: png },
+    { name: 'cancel-queued.png', mimeType: 'image/png', buffer: png },
+  ]);
+  await page.locator('#clear').click();
+  await page.waitForFunction(() => window.previewURLs.size === 0);
+  assert.equal(await page.locator('.file-row').count(), 0, 'cleared previews cannot reinsert rows or leak URLs');
+  console.log('PASS thumbnail cancellation and object URL cleanup');
   await page.setViewportSize({ width: 1180, height: 980 });
   const host = await context.newPage();
   host.on('pageerror', error => errors.push(error.message));

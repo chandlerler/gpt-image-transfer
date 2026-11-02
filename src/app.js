@@ -2,7 +2,7 @@ import { initTheme, setTheme } from './theme.js';
 import { openWorkspace, loadWorkspace, discardWorkspace, captureControls, restoreControls } from './workspace-transfer.js';
 import { Zip, ZipPassThrough } from 'fflate';
 import { formats, outputNames, bytes } from './core.js';
-import { convert } from './convert.js';
+import { convert, previewFile } from './convert.js';
 
 const $ = id => document.getElementById(id);
 document.body.classList.toggle('in-panel', new URLSearchParams(location.search).has('panel'));
@@ -21,7 +21,7 @@ function selectTool(tool) {
   }
   if (cropping && !cropFrame) {
     cropFrame = document.createElement('iframe'); cropFrame.id = 'crop-frame';
-    cropFrame.title = '图片批量裁剪'; cropFrame.src = 'crop.html';
+    cropFrame.title = '图片批量裁剪'; cropFrame.src = 'crop.html?embedded=1';
     $('crop-view').append(cropFrame);
   }
 }
@@ -36,6 +36,7 @@ for (const tool of ['convert', 'crop']) {
 }
 const entries = [];
 let selectedFormat = 'png', busy = false, stopped = false, sequence = 0;
+let previewTasks = Promise.resolve();
 const tips = {
   png: '无损压缩，保留透明背景。', jpg: '适合照片；透明区域将填充为指定颜色。',
   webp: '兼顾体积与画质，支持透明背景。', gif: '静态 GIF，最多 256 色；透明区域使用填充色。',
@@ -45,19 +46,44 @@ const tips = {
 function status(message) { $('status').textContent = message; }
 function options() {
   return {
-    format: selectedFormat, quality: Number($('quality').value) / 100, background: $('background').value,
+    format: selectedFormat, quality: 1, background: $('background').value,
     pattern: $('pattern').value, start: Number($('start').value), digits: Number($('digits').value),
-    maxWidth: Number($('max-width').value), maxHeight: Number($('max-height').value),
+    maxWidth: 0, maxHeight: 0,
   };
 }
 function validOptions() {
-  for (const id of ['start', 'max-width', 'max-height']) if (!$(id).checkValidity()) { $(id).reportValidity(); return false; }
+  for (const id of ['start']) if (!$(id).checkValidity()) { $(id).reportValidity(); return false; }
   return true;
 }
 function names() { return outputNames(entries.map(entry => entry.file), options()); }
 function release(entry) {
+  entry.previewVersion++;
   if (entry.previewURL) URL.revokeObjectURL(entry.previewURL);
   entry.previewURL = null; entry.previewBlob = null; entry.result = null;
+}
+function showPreview(entry, blob) {
+  entry.previewVersion++;
+  if (entry.previewURL) URL.revokeObjectURL(entry.previewURL);
+  entry.previewBlob = blob; entry.previewURL = URL.createObjectURL(blob);
+  const image = document.createElement('img');
+  image.className = 'thumb'; image.alt = entry.file.name; image.src = entry.previewURL;
+  entry.thumb.replaceWith(image); entry.thumb = image;
+}
+function queuePreview(entry) {
+  const version = entry.previewVersion;
+  // Decode sequentially: a large upload must not create hundreds of full-size
+  // bitmaps at once. Removed entries and newer conversion previews win races.
+  previewTasks = previewTasks.then(async () => {
+    if (!entries.includes(entry) || entry.previewVersion !== version) return;
+    try {
+      const blob = await previewFile(entry.file);
+      if (entries.includes(entry) && entry.previewVersion === version) showPreview(entry, blob);
+    } catch {
+      if (entries.includes(entry) && entry.previewVersion === version) {
+        entry.thumb.title = '暂时无法预览，转换时将显示具体处理结果';
+      }
+    }
+  });
 }
 function refresh() {
   const listNames = names();
@@ -93,11 +119,11 @@ function invalidate() {
   if (entries.length) status('转换设置已更新，点击开始转换生成新文件。');
   refresh();
 }
-function addFiles(files) {
+function addFiles(files, { previews = true } = {}) {
   if (busy) { status('当前任务处理中，请完成后再添加图片。'); return; }
   const fragment = document.createDocumentFragment();
   for (const file of files) {
-    const entry = { id: ++sequence, file, result: null, previewURL: null };
+    const entry = { id: ++sequence, file, result: null, previewURL: null, previewVersion: 0 };
     const row = document.createElement('li'); row.className = 'file-row';
     const thumb = document.createElement('div'); thumb.className = 'thumb file-icon'; thumb.textContent = '▧';
     const info = document.createElement('div'); info.className = 'file-info';
@@ -111,6 +137,7 @@ function addFiles(files) {
     remove.addEventListener('click', () => { if (busy) return; release(entry); entries.splice(entries.indexOf(entry), 1); row.remove(); refresh(); });
     actions.append(download, remove); row.append(thumb, info, actions); fragment.append(row);
     Object.assign(entry, { row, thumb, title, meta, download, remove }); entries.push(entry);
+    if (previews) queuePreview(entry);
   }
   $('file-list').append(fragment); refresh();
   status(`已添加 ${entries.length} 张图片，可以开始转换。`);
@@ -138,9 +165,7 @@ async function run() {
       await yieldUI();
       try {
         const result = await convert(entry.file, settings);
-        release(entry); entry.result = result; entry.previewBlob = result.preview; entry.previewURL = URL.createObjectURL(result.preview);
-        const preview = document.createElement('img'); preview.className = 'thumb'; preview.alt = entry.file.name; preview.src = entry.previewURL;
-        entry.thumb.replaceWith(preview); entry.thumb = preview;
+        release(entry); entry.result = result; showPreview(entry, result.preview);
         entry.meta.className = 'file-meta success';
         entry.meta.textContent = `✓ ${result.width} × ${result.height} · ${bytes(entry.file.size)} → ${bytes(result.blob.size)}`;
         succeeded++;
@@ -204,12 +229,11 @@ for (const [format, { label }] of Object.entries(formats)) {
     if (busy || selectedFormat === format) return;
     selectedFormat = format;
     document.querySelectorAll('#formats button').forEach(el => { el.classList.toggle('active', el.dataset.format === format); el.setAttribute('aria-pressed', String(el.dataset.format === format)); });
-    $('format-tip').textContent = tips[format]; $('quality-field').hidden = !['jpg', 'webp'].includes(format);
+    $('format-tip').textContent = tips[format];
     $('background-field').hidden = !['jpg', 'bmp', 'gif'].includes(format); invalidate();
   });
   $('formats').append(button);
 }
-$('quality-field').hidden = true;
 $('file-input').addEventListener('change', event => { addFiles(event.target.files); event.target.value = ''; });
 $('drop-zone').addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!busy) $('file-input').click(); } });
 for (const type of ['dragenter', 'dragover']) $('drop-zone').addEventListener(type, event => { event.preventDefault(); $('drop-zone').classList.add('dragover'); });
@@ -222,7 +246,7 @@ $('clear').addEventListener('click', () => {
   entries.forEach(release); entries.length = 0; $('file-list').replaceChildren(); $('progress').hidden = true; refresh(); status('队列已清空，可以添加新的图片。');
 });
 for (const id of ['pattern', 'start', 'digits']) $(id).addEventListener('input', refresh);
-for (const id of ['quality', 'background', 'max-width', 'max-height']) $(id).addEventListener('input', () => { $('quality-value').textContent = `${$('quality').value}%`; invalidate(); });
+$('background').addEventListener('input', invalidate);
 $('convert').addEventListener('click', run);
 $('cancel').addEventListener('click', () => { stopped = true; $('cancel').disabled = true; $('cancel').textContent = '正在完成当前图片…'; });
 $('download-all').addEventListener('click', downloadAll);
@@ -266,6 +290,7 @@ async function detachWorkspace() {
     crop = await cropWorkspace();
     if (crop) await crop.freeze();
     while (busy) await new Promise(resolve => setTimeout(resolve, 50));
+    await previewTasks;
     const snapshot = {
       version: 1, tool: currentTool, theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
       conversion: {
@@ -304,21 +329,15 @@ async function restoreWorkspace(id) {
       el.classList.toggle('active', active); el.setAttribute('aria-pressed', String(active));
     });
     $('format-tip').textContent = tips[selectedFormat];
-    $('quality-field').hidden = !['jpg', 'webp'].includes(selectedFormat);
     $('background-field').hidden = !['jpg', 'bmp', 'gif'].includes(selectedFormat);
-    $('quality-value').textContent = `${$('quality').value}%`;
-    addFiles(state.entries.map(entry => entry.file));
+    addFiles(state.entries.map(entry => entry.file), { previews: false });
     entries.forEach((entry, index) => {
       const saved = state.entries[index]; entry.result = saved.result;
-      entry.previewBlob = saved.preview || saved.result?.preview;
-      if (entry.previewBlob) {
-        entry.previewURL = URL.createObjectURL(entry.previewBlob);
-        const img = document.createElement('img'); img.className = 'thumb'; img.alt = entry.file.name; img.src = entry.previewURL;
-        entry.thumb.replaceWith(img); entry.thumb = img;
-      }
+      const preview = saved.preview || saved.result?.preview;
+      if (preview) showPreview(entry, preview); else queuePreview(entry);
       entry.meta.textContent = saved.meta; entry.meta.className = saved.metaClass;
     });
-    $('conversion-view').querySelectorAll('details').forEach((el, index) => { el.open = !!state.details[index]; });
+    $('conversion-view').querySelectorAll('details').forEach((el, index) => { el.open = !!state.details?.[index]; });
     Object.assign($('progress'), state.progress); refresh(); status(state.status);
     setTheme(snapshot.theme);
     if (snapshot.crop) {
@@ -328,6 +347,7 @@ async function restoreWorkspace(id) {
     }
     selectTool(snapshot.tool);
     requestAnimationFrame(() => { scrollTo(state.scroll.x, state.scroll.y); $('file-list').scrollTop = state.scroll.list; });
+    await previewTasks;
     history.replaceState(null, '', location.pathname);
     await discardWorkspace(id).catch(() => {});
     transferNotice('已恢复两个工具的图片、设置及处理结果，可继续编辑或直接下载。');

@@ -37,10 +37,14 @@ summary,summary span{color:var(--muted)}
 .tool-tab{color:var(--muted)}.tool-tab.active{background:var(--accent-grad);color:#fff;box-shadow:var(--shadow-sm)}
 .tool-heading .theme-toggle{position:static;flex-shrink:0;display:block;line-height:0}
 .in-panel .tool-heading{margin-bottom:12px;gap:8px}.in-panel .tool-heading .tool-tabs{margin:0}
-.crop-active .tool-heading>.theme-toggle{display:none}
 #crop-frame{border-color:var(--line)}
 #workspace-notice{font-size:12px;line-height:1.7;background:var(--accent-soft);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
 #workspace-notice.error{color:var(--err)}
 #workspace-overlay{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 88%,transparent);color:var(--text);font-size:14px;text-align:center;cursor:wait;backdrop-filter:blur(5px)}
 #workspace-overlay[hidden],#workspace-notice[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){body{transition:none}}
+
+/* Keep the shared switch at exactly the same coordinates in both tool views. */
+.in-panel.crop-active main{padding:14px 16px 8px}
+.in-panel #crop-frame{height:calc(100dvh - 88px)}
+@media(max-width:519px){.in-panel.crop-active main{padding:12px}}
