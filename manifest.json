@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "minimum_chrome_version": "120",
   "name": "图像港 · 图片批量转换与裁剪",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "通过可拖动悬浮窗，在本地批量转换格式、可视化裁剪、按体积压缩、重命名并打包下载。",
   "action": {
-    "default_title": "打开图像港"
+    "default_title": "图像港 · 打开工具 / 悬浮球设置",
+    "default_popup": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
@@ -49,5 +50,8 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; img-src 'self' blob: data:; connect-src 'none'"
-  }
+  },
+  "permissions": [
+    "storage"
+  ]
 }

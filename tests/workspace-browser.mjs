@@ -114,6 +114,7 @@ try {
   await crop.locator('#zipToggle').check(); await crop.locator('#zipName').fill('商品主图');
   await app.locator('#themeToggle').click();
   await app.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await host.waitForFunction(() => document.querySelector('#image-port-root').shadowRoot.querySelector('.panel').dataset.theme === 'dark');
   assert.equal(await host.locator('.panel').getAttribute('data-theme'), 'dark');
   async function cropFingerprint(frame) {
     return frame.evaluate(async () => {

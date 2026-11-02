@@ -3,11 +3,13 @@ import { mountImagePortLauncher } from './launcher.js';
   if (window.top !== window || document.getElementById('image-port-root')) return;
   const host = document.createElement('div');
   host.id = 'image-port-root';
-  host.style.cssText = 'all:initial!important;position:fixed!important;width:44px!important;height:44px!important;z-index:2147483647!important;';
+  host.style.cssText = 'all:initial!important;display:none!important;position:fixed!important;width:44px!important;height:44px!important;margin:0!important;padding:0!important;border:0!important;inset:auto!important;overflow:visible!important;z-index:2147483647!important;';
+  // A manual popover uses the browser top layer, outside page transforms and clipping.
+  host.popover = 'manual';
   const root = host.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
   style.textContent = `
-    :host{font-family:system-ui,sans-serif}*{box-sizing:border-box}button{cursor:pointer;border:0;font:inherit}
+    :host{font-family:system-ui,sans-serif}:host::backdrop{display:none}*{box-sizing:border-box}button{cursor:pointer;border:0;font:inherit}
     button:focus-visible{outline:3px solid #a8c776;outline-offset:2px}
     .launcher{display:grid;place-items:center;width:44px;height:44px;padding:0;position:relative;z-index:1;border-radius:50%;overflow:hidden;background:transparent;color:#392d25;box-shadow:0 4px 16px #503a2533;touch-action:none;user-select:none;cursor:grab}
     .launcher:hover{background:transparent}.launcher svg{display:block;width:100%;height:100%;pointer-events:none}.launcher svg *{pointer-events:none}
@@ -49,7 +51,22 @@ import { mountImagePortLauncher } from './launcher.js';
   titlebar.append(close);
   panel.append(titlebar);
   let frame;
-  let launcherPosition = { x: innerWidth - 64, y: innerHeight - 68 };
+  let launcherPosition;
+  let anchor = { right: true, bottom: true, x: 20, y: 24 };
+  function rememberAnchor() {
+    anchor = {
+      right: launcherPosition.x + 22 >= innerWidth / 2,
+      bottom: launcherPosition.y + 22 >= innerHeight / 2,
+      x: 0, y: 0,
+    };
+    anchor.x = anchor.right ? innerWidth - launcherPosition.x - 44 : launcherPosition.x;
+    anchor.y = anchor.bottom ? innerHeight - launcherPosition.y - 44 : launcherPosition.y;
+  }
+  function restoreAnchor() {
+    launcherPosition = { x: anchor.right ? innerWidth - 44 - anchor.x : anchor.x,
+      y: anchor.bottom ? innerHeight - 44 - anchor.y : anchor.y };
+    placeLauncher();
+  }
   let panelPosition = null;
   let suppressClick = false;
   function bounded(point, width, height) {
@@ -104,7 +121,7 @@ import { mountImagePortLauncher } from './launcher.js';
     handle.addEventListener('pointercancel', finish);
     handle.addEventListener('lostpointercapture', finish);
   }
-  draggable(button, button, () => ({ ...launcherPosition }), position => { launcherPosition = position; placeLauncher(); }, moved => { suppressClick = moved; });
+  draggable(button, button, () => ({ ...launcherPosition }), position => { launcherPosition = position; placeLauncher(); }, moved => { suppressClick = moved; if (moved) rememberAnchor(); });
   draggable(titlebar, panel, () => { const rect = panel.getBoundingClientRect(); return { x: rect.x, y: rect.y }; }, position => { panelPosition = position; placePanel(); });
   function toggle(force) {
     const open = typeof force === 'boolean' ? force : panel.hidden;
@@ -122,9 +139,10 @@ import { mountImagePortLauncher } from './launcher.js';
     if (suppressClick && event.detail !== 0) { suppressClick = false; return; }
     toggle();
   });
-  window.addEventListener('resize', placeLauncher);
+  window.addEventListener('resize', restoreAnchor);
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (message.type === 'image-port:toggle') { toggle(); reply({ ok: true }); }
+    if (message?.type === 'image-port:toggle') { toggle(); reply({ ok: true }); }
+    if (message?.type === 'image-port:open-panel') { setVisible(true); toggle(true); reply({ ok: true }); }
   });
   window.addEventListener('message', (event) => {
     const url = new URL(chrome.runtime.getURL('/'));
@@ -140,5 +158,28 @@ import { mountImagePortLauncher } from './launcher.js';
   });
   root.append(style, panel, button);
   document.documentElement.append(host);
-  placeLauncher();
+  restoreAnchor();
+  function setVisible(visible) {
+    if (visible) {
+      host.style.setProperty('display', 'block', 'important');
+      host.showPopover();
+      restoreAnchor();
+    } else {
+      toggle(false);
+      host.hidePopover();
+      host.style.setProperty('display', 'none', 'important');
+    }
+  }
+  // Subscribe before reading: a newer setting must win over a pending initial read.
+  let preferenceChanged = false;
+  chrome.storage?.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.launcherEnabled) return;
+    preferenceChanged = true;
+    setVisible(changes.launcherEnabled.newValue !== false);
+  });
+  if (chrome.storage?.local) {
+    chrome.storage.local.get({ launcherEnabled: true }).then(settings => {
+      if (!preferenceChanged) setVisible(settings.launcherEnabled !== false);
+    }).catch(() => { if (!preferenceChanged) setVisible(true); });
+  } else setVisible(true);
 })();
