@@ -84,6 +84,8 @@ npm run test:e2e
 npm run test:workspace
 # 悬浮球定位与工具栏开关回归
 npm run test:toolbar
+# 独立页面全宽、全高与小屏布局
+npm run test:layout
 # 在允许加载开发者扩展的 Chromium 环境中运行实际安装测试
 npm run test:extension
 # 一次运行全部检查
@@ -95,6 +97,8 @@ npm run check
 默认端到端测试在真实 Chromium 中通过本地测试服务器运行两个工具页，并模拟扩展 runtime API 来测试悬浮窗。覆盖七种格式编码、实际像素/透明度、损坏文件隔离、重命名、ZIP 和单张下载、拖动面板、小屏布局，以及裁剪像素、尺寸/比例、体积压缩、卡片拖动排序、选择下载、粘贴/拖放导入、主题记忆、双入口状态保留。测试截图在 `artifacts/` 下。
 
 `npm run test:extension` 使用同一套用例，以实际已加载扩展的方式运行，不模拟 runtime API。当前云环境设置了 `ExtensionInstallBlocklist: ["*"]` 管理策略，阻止实际安装测试；因此本环境的功能测试不能替代用户 Chrome 上的加载验证。
+
+独立工具网页占满浏览器可用页面，不再限制为 1200px 居中卡片；图片队列随内容增长，裁剪区域自动填满工具栏下方的剩余高度，宽屏可并排显示更多图片。悬浮窗仍保持紧凑布局。
 
 ## 工具栏入口与悬浮球开关
 

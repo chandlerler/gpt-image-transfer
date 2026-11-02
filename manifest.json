@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "120",
   "name": "图像港 · 图片批量转换与裁剪",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "通过可拖动悬浮窗，在本地批量转换格式、可视化裁剪、按体积压缩、重命名并打包下载。",
   "action": {
     "default_title": "图像港 · 打开工具 / 悬浮球设置",

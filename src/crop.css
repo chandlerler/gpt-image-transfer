@@ -490,3 +490,6 @@ button:disabled{cursor:default;opacity:.45}
 
 /* Embedded cropping uses the parent's shared day/night switch. */
 .embedded-crop #themeToggle{display:none}
+
+/* The embedded workspace expands with its parent, including wide standalone tabs. */
+.embedded-crop .wrap{max-width:none}

@@ -47,3 +47,22 @@
 .in-panel.crop-active main{padding:8px 8px 0}
 .in-panel.crop-active .tool-tabs{margin-bottom:8px}
 .in-panel #crop-frame{height:calc(100dvh - 62px);min-height:0;border-radius:10px 10px 0 0}
+
+/* Standalone tabs fill the viewport; the floating panel keeps its compact layout. */
+body:not(.in-panel){padding:0;min-height:100dvh}
+body:not(.in-panel) .shell{width:100%;max-width:none;min-height:100dvh;margin:0;border:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column}
+body:not(.in-panel) .shell>header,body:not(.in-panel) .shell>footer{flex-shrink:0}
+body:not(.in-panel) main{flex:1;display:flex;flex-direction:column;min-width:0}
+body:not(.in-panel) .tool-heading,body:not(.in-panel) #workspace-notice{flex-shrink:0}
+body:not(.in-panel) #conversion-view{flex:1;display:flex;flex-direction:column}
+body:not(.in-panel) .workspace{flex:1;align-items:stretch;grid-template-columns:minmax(0,1fr) 320px}
+body:not(.in-panel) .files-column{display:flex;flex-direction:column}
+body:not(.in-panel) .empty-state{flex:1}
+body:not(.in-panel) .file-list{max-height:none;flex:1}
+body:not(.in-panel) .file-list:empty{display:none}
+body:not(.in-panel) .settings{align-self:start}
+body:not(.in-panel).crop-active .shell{height:100dvh}
+body:not(.in-panel).crop-active main{min-height:0}
+body:not(.in-panel) #crop-view{flex:1;min-height:0;display:flex;flex-direction:column}
+body:not(.in-panel) #crop-frame{flex:1;height:0;min-height:0}
+@media(max-width:720px){body:not(.in-panel) .workspace{grid-template-columns:minmax(0,1fr)}}
